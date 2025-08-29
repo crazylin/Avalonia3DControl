@@ -741,6 +741,9 @@ void main()
                     GL.GetInteger(GetPName.CurrentProgram, out int savedProgram);
                     GL.GetInteger(GetPName.VertexArrayBinding, out int savedVAO);
                     GL.GetInteger(GetPName.PolygonMode, out int savedPolygonMode);
+                    GL.GetBoolean(GetPName.DepthTest, out bool savedDepthTest);
+                    GL.GetBoolean(GetPName.DepthWritemask, out bool savedDepthMask);
+                    GL.GetInteger(GetPName.DepthFunc, out int savedDepthFunc);
                     
                     // 坐标轴使用顶点着色模式，独立设置着色器
                     int axesShaderProgram = _shaderPrograms[ShadingMode.Vertex];
@@ -773,16 +776,24 @@ void main()
                         GL.EnableVertexAttribArray(colorLoc);
                     }
                     
-                    // 坐标轴始终以线框模式渲染
-                    GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+                    // 坐标轴以填充模式渲染（3D几何体）
+                    GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
                     
-                    // 绘制坐标轴
-                    GL.DrawElements(PrimitiveType.Lines, Scene.CoordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
+                    // 绘制坐标轴（使用三角形渲染3D几何体）
+                    GL.DrawElements(PrimitiveType.Triangles, Scene.CoordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
                     
                     // 完全恢复OpenGL状态
                     GL.UseProgram(savedProgram);
                     GL.BindVertexArray(savedVAO);
                     GL.PolygonMode(MaterialFace.FrontAndBack, (PolygonMode)savedPolygonMode);
+                    
+                    // 恢复深度测试状态
+                    if (savedDepthTest)
+                        GL.Enable(EnableCap.DepthTest);
+                    else
+                        GL.Disable(EnableCap.DepthTest);
+                    GL.DepthMask(savedDepthMask);
+                    GL.DepthFunc((DepthFunction)savedDepthFunc);
                 }
             }
             

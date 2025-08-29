@@ -578,7 +578,7 @@ namespace Avalonia3DControl
         }
         
         /// <summary>
-        /// 创建三维坐标轴
+        /// 创建三维坐标轴（3D箭头形式：圆柱+锥型+原点小球）
         /// </summary>
         /// <param name="length">坐标轴长度</param>
         /// <returns>坐标轴模型</returns>
@@ -586,35 +586,191 @@ namespace Avalonia3DControl
         {
             var vertices = new List<float>();
             var indices = new List<uint>();
+            uint vertexIndex = 0;
             
-            // X轴 - 红色
-            vertices.AddRange(new float[] { 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f }); // 原点
-            vertices.AddRange(new float[] { length, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f }); // X轴终点
+            float cylinderRadius = 0.02f;
+            float coneRadius = 0.05f;
+            float coneHeight = 0.15f;
+            float sphereRadius = 0.04f;
+            int segments = 12; // 圆柱和锥体的分段数
             
-            // Y轴 - 绿色
-            vertices.AddRange(new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f }); // 原点
-            vertices.AddRange(new float[] { 0.0f, length, 0.0f, 0.0f, 1.0f, 0.0f }); // Y轴终点
+            // 1. 创建原点小球
+            var sphereVertices = CreateSphereVertices(Vector3.Zero, sphereRadius, segments, new Vector3(0.8f, 0.8f, 0.8f));
+            vertices.AddRange(sphereVertices.vertices);
+            foreach (var index in sphereVertices.indices)
+            {
+                indices.Add(index + vertexIndex);
+            }
+            vertexIndex += (uint)(sphereVertices.vertices.Count / 6);
             
-            // Z轴 - 蓝色
-            vertices.AddRange(new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f }); // 原点
-            vertices.AddRange(new float[] { 0.0f, 0.0f, length, 0.0f, 0.0f, 1.0f }); // Z轴终点
+            // 2. 创建X轴（红色）
+            var xAxisData = CreateAxisArrow(Vector3.Zero, new Vector3(length, 0, 0), cylinderRadius, coneRadius, coneHeight, segments, new Vector3(1.0f, 0.0f, 0.0f));
+            vertices.AddRange(xAxisData.vertices);
+            foreach (var index in xAxisData.indices)
+            {
+                indices.Add(index + vertexIndex);
+            }
+            vertexIndex += (uint)(xAxisData.vertices.Count / 6);
             
-            // 线段索引
-            indices.AddRange(new uint[] { 0, 1 }); // X轴
-            indices.AddRange(new uint[] { 2, 3 }); // Y轴
-            indices.AddRange(new uint[] { 4, 5 }); // Z轴
+            // 3. 创建Y轴（绿色）
+            var yAxisData = CreateAxisArrow(Vector3.Zero, new Vector3(0, length, 0), cylinderRadius, coneRadius, coneHeight, segments, new Vector3(0.0f, 1.0f, 0.0f));
+            vertices.AddRange(yAxisData.vertices);
+            foreach (var index in yAxisData.indices)
+            {
+                indices.Add(index + vertexIndex);
+            }
+            vertexIndex += (uint)(yAxisData.vertices.Count / 6);
+            
+            // 4. 创建Z轴（蓝色）
+            var zAxisData = CreateAxisArrow(Vector3.Zero, new Vector3(0, 0, length), cylinderRadius, coneRadius, coneHeight, segments, new Vector3(0.0f, 0.0f, 1.0f));
+            vertices.AddRange(zAxisData.vertices);
+            foreach (var index in zAxisData.indices)
+            {
+                indices.Add(index + vertexIndex);
+            }
             
             var axes = new Model3D
             {
                 Name = "CoordinateAxes",
                 Vertices = vertices.ToArray(),
                 Indices = indices.ToArray(),
-                VertexCount = 6,
+                VertexCount = vertices.Count / 6,
                 IndexCount = indices.Count
             };
             
             axes.Material = Material.CreateMetal(new Vector3(0.8f, 0.8f, 0.8f));
             return axes;
+        }
+        
+        /// <summary>
+        /// 创建单个坐标轴箭头（圆柱+锥体）
+        /// </summary>
+        private static (List<float> vertices, List<uint> indices) CreateAxisArrow(Vector3 start, Vector3 end, float cylinderRadius, float coneRadius, float coneHeight, int segments, Vector3 color)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+            uint baseIndex = 0;
+            
+            Vector3 direction = Vector3.Normalize(end - start);
+            float axisLength = (end - start).Length;
+            float cylinderLength = axisLength - coneHeight;
+            
+            // 计算垂直于轴的两个向量
+            Vector3 up = MathF.Abs(direction.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX;
+            Vector3 right = Vector3.Normalize(Vector3.Cross(direction, up));
+            up = Vector3.Cross(right, direction);
+            
+            // 1. 创建圆柱体
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = 2.0f * MathF.PI * i / segments;
+                Vector3 circlePoint = right * MathF.Cos(angle) + up * MathF.Sin(angle);
+                
+                // 圆柱底部
+                Vector3 bottomPos = start + circlePoint * cylinderRadius;
+                vertices.AddRange(new float[] { bottomPos.X, bottomPos.Y, bottomPos.Z, color.X, color.Y, color.Z });
+                
+                // 圆柱顶部
+                Vector3 topPos = start + direction * cylinderLength + circlePoint * cylinderRadius;
+                vertices.AddRange(new float[] { topPos.X, topPos.Y, topPos.Z, color.X, color.Y, color.Z });
+            }
+            
+            // 圆柱体侧面三角形
+            for (int i = 0; i < segments; i++)
+            {
+                uint bottom1 = baseIndex + (uint)(i * 2);
+                uint top1 = bottom1 + 1;
+                uint bottom2 = baseIndex + (uint)((i + 1) * 2);
+                uint top2 = bottom2 + 1;
+                
+                // 第一个三角形
+                indices.Add(bottom1);
+                indices.Add(top1);
+                indices.Add(bottom2);
+                
+                // 第二个三角形
+                indices.Add(top1);
+                indices.Add(top2);
+                indices.Add(bottom2);
+            }
+            
+            baseIndex += (uint)((segments + 1) * 2);
+            
+            // 2. 创建锥体
+            Vector3 coneBase = start + direction * cylinderLength;
+            Vector3 coneTop = end;
+            
+            // 锥体顶点
+            vertices.AddRange(new float[] { coneTop.X, coneTop.Y, coneTop.Z, color.X, color.Y, color.Z });
+            uint coneTopIndex = baseIndex;
+            baseIndex++;
+            
+            // 锥体底面圆周
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = 2.0f * MathF.PI * i / segments;
+                Vector3 circlePoint = right * MathF.Cos(angle) + up * MathF.Sin(angle);
+                Vector3 pos = coneBase + circlePoint * coneRadius;
+                vertices.AddRange(new float[] { pos.X, pos.Y, pos.Z, color.X, color.Y, color.Z });
+            }
+            
+            // 锥体侧面三角形
+            for (int i = 0; i < segments; i++)
+            {
+                uint base1 = baseIndex + (uint)i;
+                uint base2 = baseIndex + (uint)(i + 1);
+                
+                indices.Add(coneTopIndex);
+                indices.Add(base1);
+                indices.Add(base2);
+            }
+            
+            return (vertices, indices);
+        }
+        
+        /// <summary>
+        /// 创建球体顶点数据
+        /// </summary>
+        private static (List<float> vertices, List<uint> indices) CreateSphereVertices(Vector3 center, float radius, int segments, Vector3 color)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+            
+            // 生成球体顶点
+            for (int i = 0; i <= segments; i++)
+            {
+                float phi = MathF.PI * i / segments;
+                for (int j = 0; j <= segments; j++)
+                {
+                    float theta = 2.0f * MathF.PI * j / segments;
+                    
+                    float x = center.X + radius * MathF.Sin(phi) * MathF.Cos(theta);
+                    float y = center.Y + radius * MathF.Cos(phi);
+                    float z = center.Z + radius * MathF.Sin(phi) * MathF.Sin(theta);
+                    
+                    vertices.AddRange(new float[] { x, y, z, color.X, color.Y, color.Z });
+                }
+            }
+            
+            // 生成索引
+            for (int i = 0; i < segments; i++)
+            {
+                for (int j = 0; j < segments; j++)
+                {
+                    uint first = (uint)(i * (segments + 1) + j);
+                    uint second = (uint)(first + segments + 1);
+                    
+                    indices.Add(first);
+                    indices.Add(second);
+                    indices.Add(first + 1);
+                    
+                    indices.Add(second);
+                    indices.Add(second + 1);
+                    indices.Add(first + 1);
+                }
+            }
+            
+            return (vertices, indices);
         }
         
         /// <summary>
