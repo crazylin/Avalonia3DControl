@@ -760,9 +760,15 @@ void main()
                         GL.EnableVertexAttribArray(colorLoc);
                     }
                     
+                    // 保存当前多边形模式
+                    GL.GetInteger(GetPName.PolygonMode, out int currentPolygonMode);
+                    
                     // 坐标轴始终以线框模式渲染
                     GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
                     GL.DrawElements(PrimitiveType.Lines, Scene.CoordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
+                    
+                    // 恢复之前的多边形模式
+                    GL.PolygonMode(MaterialFace.FrontAndBack, (PolygonMode)currentPolygonMode);
                 }
             }
             
