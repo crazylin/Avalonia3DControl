@@ -1,0 +1,214 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Avalonia3DControl"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+        x:Class="Avalonia3DControl.MainWindow"
+        Title="Avalonia 3D Control Demo"
+        Width="1000" Height="700">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="250"/>
+        </Grid.ColumnDefinitions>
+        
+        <!-- 主要内容区域 -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- 标题栏 -->
+            <TextBlock Grid.Row="0" 
+                       Text="Avalonia 3D Control 演示" 
+                       FontSize="28" 
+                       FontWeight="Bold" 
+                       HorizontalAlignment="Center" 
+                       Margin="20,15"
+                       Foreground="#2E3440"/>
+            
+            <!-- 3D控件区域 -->
+            <Border Grid.Row="1" 
+                    Margin="20" 
+                    BorderBrush="#4C566A" 
+                    BorderThickness="0" 
+                    CornerRadius="8">
+                <local:OpenGL3DControl x:Name="OpenGLControl" Focusable="True"/>
+            </Border>
+            
+            <!-- 操作提示 -->
+            <Border Grid.Row="2" 
+                    Background="#ECEFF4" 
+                    Margin="20,0,20,20" 
+                    Padding="15" 
+                    CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="🎮 交互操作指南" 
+                               FontSize="16" 
+                               FontWeight="Bold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#2E3440"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🖱️ 左键拖拽：" FontWeight="SemiBold" Margin="0,0,5,0" Foreground="#5E81AC"/>
+                        <TextBlock Text="旋转视角" Margin="0,0,20,0" Foreground="#4C566A"/>
+                        <TextBlock Text="🖱️ 右键拖拽：" FontWeight="SemiBold" Margin="0,0,5,0" Foreground="#5E81AC"/>
+                        <TextBlock Text="平移场景" Margin="0,0,20,0" Foreground="#4C566A"/>
+                        <TextBlock Text="🎯 滚轮：" FontWeight="SemiBold" Margin="0,0,5,0" Foreground="#5E81AC"/>
+                        <TextBlock Text="缩放视图" Foreground="#4C566A"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- 侧边栏控制面板 -->
+        <Border Grid.Column="1" 
+                Background="#D8DEE9" 
+                Margin="0,0,20,20" 
+                CornerRadius="8,0,0,8">
+            <ScrollViewer>
+                <StackPanel Margin="20">
+                    <TextBlock Text="🎛️ 渲染控制" 
+                               FontSize="18" 
+                               FontWeight="Bold" 
+                               Margin="0,0,0,15" 
+                               Foreground="#2E3440"/>
+                    
+                    <!-- 着色模式控制 -->
+                    <TextBlock Text="🎨 着色模式" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <RadioButton x:Name="FlatShadingRadio" Content="平面着色" 
+                                     GroupName="ShadingMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="GouraudShadingRadio" Content="Gouraud着色" 
+                                     GroupName="ShadingMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="PhongShadingRadio" Content="Phong着色" 
+                                     GroupName="ShadingMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="WireframeShadingRadio" Content="线框模式" 
+                                     GroupName="ShadingMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="VertexShadingRadio" Content="顶点着色" 
+                                     GroupName="ShadingMode" 
+                                     IsChecked="True" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="TextureShadingRadio" Content="纹理模式" 
+                                     GroupName="ShadingMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                    </StackPanel>
+                    
+                    <!-- 渲染模式控制 -->
+                    <TextBlock Text="🔧 渲染模式" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <RadioButton x:Name="PointRenderRadio" Content="点模式" 
+                                     GroupName="RenderMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="LineRenderRadio" Content="线框模式" 
+                                     GroupName="RenderMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="FillRenderRadio" Content="填充模式" 
+                                     GroupName="RenderMode" 
+                                     IsChecked="True" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                    </StackPanel>
+                    
+                    <!-- 模型显示控制 -->
+                    <TextBlock Text="👁️ 模型显示" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <RadioButton x:Name="NoneModelRadio" Content="无模型" 
+                                     GroupName="ModelSelection"
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="CubeModelRadio" Content="立方体 (红色塑料)" 
+                                     GroupName="ModelSelection"
+                                     IsChecked="True" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="SphereModelRadio" Content="球体 (绿色金属)" 
+                                     GroupName="ModelSelection"
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="WaveModelRadio" Content="波浪 (蓝色玻璃)" 
+                                     GroupName="ModelSelection"
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="WaterDropModelRadio" Content="水滴 (青色玻璃)" 
+                                     GroupName="ModelSelection"
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                    </StackPanel>
+                    
+                    
+                    <!-- 材质预设按钮 -->
+                    <TextBlock Text="🎭 材质预设" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <Button x:Name="PlasticMaterialBtn" Content="塑料材质" 
+                                Margin="0,2" 
+                                Background="#BF616A" 
+                                Foreground="White" 
+                                Padding="8,4"/>
+                        <Button x:Name="MetalMaterialBtn" Content="金属材质" 
+                                Margin="0,2" 
+                                Background="#A3BE8C" 
+                                Foreground="White" 
+                                Padding="8,4"/>
+                        <Button x:Name="GlassMaterialBtn" Content="玻璃材质" 
+                                Margin="0,2" 
+                                Background="#88C0D0" 
+                                Foreground="White" 
+                                Padding="8,4"/>
+                    </StackPanel>
+                    
+                    <!-- 技术特性 -->
+                    <TextBlock Text="⚡ 技术特性" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel>
+                        <TextBlock Text="• 多种着色算法" Margin="0,2" Foreground="#4C566A"/>
+                        <TextBlock Text="• 实时材质切换" Margin="0,2" Foreground="#4C566A"/>
+                        <TextBlock Text="• 多种渲染模式" Margin="0,2" Foreground="#4C566A"/>
+                        <TextBlock Text="• 动态光照计算" Margin="0,2" Foreground="#4C566A"/>
+                        <TextBlock Text="• 交互式3D场景" Margin="0,2" Foreground="#4C566A"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+
+</Window>
