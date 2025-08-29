@@ -29,8 +29,9 @@ namespace Avalonia3DControl
             AddDefaultLight();
             
             // 初始化坐标轴
-            CoordinateAxes = GeometryFactory.CreateCoordinateAxes();
+            CoordinateAxes = new CoordinateAxesModel();
             CoordinateAxes.Name = "CoordinateAxes";
+            // 坐标轴使用特殊的模型类，确保始终在原点
             
             // 场景初始化为空，模型将按需动态加载
         }
@@ -102,18 +103,25 @@ namespace Avalonia3DControl
             // 清空现有模型
             ClearModels();
             
+            Model3D? mainModel = null;
+            
             // 如果指定了模型类型，创建并添加新模型
             if (!string.IsNullOrEmpty(modelType))
             {
-                var model = CreateModel(modelType);
-                if (model != null)
+                mainModel = CreateModel(modelType);
+                if (mainModel != null)
                 {
-                    Models.Add(model);
+                    Models.Add(mainModel);
                 }
-                return model;
             }
             
-            return null;
+            // 如果坐标轴显示开关打开，将坐标轴也作为普通模型添加
+            if (ShowCoordinateAxes && CoordinateAxes != null)
+            {
+                Models.Add(CoordinateAxes);
+            }
+            
+            return mainModel;
         }
         
         /// <summary>
@@ -123,6 +131,16 @@ namespace Avalonia3DControl
         public void SetCoordinateAxesVisible(bool show)
         {
             ShowCoordinateAxes = show;
+            
+            // 重新构建模型列表以包含或排除坐标轴
+            if (show && CoordinateAxes != null && !Models.Contains(CoordinateAxes))
+            {
+                Models.Add(CoordinateAxes);
+            }
+            else if (!show && CoordinateAxes != null && Models.Contains(CoordinateAxes))
+            {
+                Models.Remove(CoordinateAxes);
+            }
         }
 
         private void AddDefaultLight()
@@ -322,6 +340,40 @@ namespace Avalonia3DControl
     }
 
     /// <summary>
+    /// 坐标轴专用模型类，始终保持在世界坐标原点
+    /// </summary>
+    public class CoordinateAxesModel : Model3D
+    {
+        /// <summary>
+        /// 标识这是坐标轴模型，需要特殊渲染处理
+        /// </summary>
+        public bool IsCoordinateAxes => true;
+        
+        public CoordinateAxesModel()
+        {
+            var axesData = GeometryFactory.CreateCoordinateAxes();
+            Vertices = axesData.Vertices;
+            Indices = axesData.Indices;
+            VertexCount = axesData.VertexCount;
+            IndexCount = axesData.IndexCount;
+            Material = axesData.Material;
+            Position = Vector3.Zero;
+            Rotation = Vector3.Zero;
+            Scale = Vector3.One;
+            Visible = true;
+        }
+        
+        /// <summary>
+        /// 坐标轴始终返回单位矩阵，不受任何变换影响
+        /// </summary>
+        /// <returns>单位矩阵</returns>
+        public override Matrix4 GetModelMatrix()
+        {
+            return Matrix4.Identity;
+        }
+    }
+    
+    /// <summary>
     /// 三维模型类
     /// </summary>
     public class Model3D
@@ -351,7 +403,7 @@ namespace Avalonia3DControl
             Name = "Model";
         }
 
-        public Matrix4 GetModelMatrix()
+        public virtual Matrix4 GetModelMatrix()
         {
             var translation = Matrix4.CreateTranslation(Position);
             var rotationX = Matrix4.CreateRotationX(Rotation.X);

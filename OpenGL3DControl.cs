@@ -698,7 +698,10 @@ void main()
                     
                     // 设置多边形模式
                     bool isWireframe = (_currentRenderMode == RenderMode.Line) || (_currentShadingMode == ShadingMode.Wireframe);
-                    if (isWireframe)
+                    
+                    // 坐标轴特殊处理：始终以线框模式渲染
+                    bool isCoordinateAxes = model is CoordinateAxesModel;
+                    if (isCoordinateAxes || isWireframe)
                     {
                         GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
                     }
@@ -708,94 +711,35 @@ void main()
                     }
                     
                     // 绘制模型
-                    switch (_currentRenderMode)
+                    if (isCoordinateAxes)
                     {
-                        case RenderMode.Point:
-                            GL.DrawElements(PrimitiveType.Points, model.IndexCount, DrawElementsType.UnsignedInt, 0);
-                            break;
-                        case RenderMode.Line:
-                        case RenderMode.Fill:
-                        default:
-                            GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
-                            break;
+                        // 坐标轴始终以线框模式绘制
+                        GL.DrawElements(PrimitiveType.Lines, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+                    }
+                    else
+                    {
+                        switch (_currentRenderMode)
+                        {
+                            case RenderMode.Point:
+                                GL.DrawElements(PrimitiveType.Points, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+                                break;
+                            case RenderMode.Line:
+                            case RenderMode.Fill:
+                            default:
+                                GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+                                break;
+                        }
+                    }
+                    
+                    // 重置多边形模式为填充模式，避免影响后续模型
+                    if (isCoordinateAxes && !isWireframe)
+                    {
+                        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
                     }
                 }
             }
             
-            // 渲染坐标轴（如果启用）- 作为独立模型处理
-            if (Scene.ShowCoordinateAxes && Scene.CoordinateAxes != null && Scene.CoordinateAxes.Visible)
-            {
-                // 如果坐标轴没有渲染数据，先创建
-                if (!_modelRenderData.ContainsKey(Scene.CoordinateAxes))
-                {
-                    CreateModelBuffers(Scene.CoordinateAxes);
-                }
-                
-                // 检查是否成功创建了渲染数据
-                if (_modelRenderData.ContainsKey(Scene.CoordinateAxes))
-                {
-                    var renderData = _modelRenderData[Scene.CoordinateAxes];
-                    var modelMatrix = Scene.CoordinateAxes.GetModelMatrix();
-                    
-                    // 保存当前OpenGL状态
-                    GL.GetInteger(GetPName.CurrentProgram, out int savedProgram);
-                    GL.GetInteger(GetPName.VertexArrayBinding, out int savedVAO);
-                    GL.GetInteger(GetPName.PolygonMode, out int savedPolygonMode);
-                    GL.GetBoolean(GetPName.DepthTest, out bool savedDepthTest);
-                    GL.GetBoolean(GetPName.DepthWritemask, out bool savedDepthMask);
-                    GL.GetInteger(GetPName.DepthFunc, out int savedDepthFunc);
-                    
-                    // 坐标轴使用顶点着色模式，独立设置着色器
-                    int axesShaderProgram = _shaderPrograms[ShadingMode.Vertex];
-                    GL.UseProgram(axesShaderProgram);
-                    
-                    // 设置坐标轴的变换矩阵
-                    int axesViewLoc = GL.GetUniformLocation(axesShaderProgram, "view");
-                    int axesProjLoc = GL.GetUniformLocation(axesShaderProgram, "projection");
-                    int axesModelLoc = GL.GetUniformLocation(axesShaderProgram, "model");
-                    
-                    if (axesViewLoc >= 0) GL.UniformMatrix4(axesViewLoc, false, ref view);
-                    if (axesProjLoc >= 0) GL.UniformMatrix4(axesProjLoc, false, ref projection);
-                    if (axesModelLoc >= 0) GL.UniformMatrix4(axesModelLoc, false, ref modelMatrix);
-                    
-                    // 绑定坐标轴VAO并设置顶点属性
-                    GL.BindVertexArray(renderData.VAO);
-                    
-                    // 设置顶点属性（坐标轴使用位置+颜色）
-                    int positionLoc = GL.GetAttribLocation(axesShaderProgram, "aPosition");
-                    if (positionLoc >= 0)
-                    {
-                        GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
-                        GL.EnableVertexAttribArray(positionLoc);
-                    }
-                    
-                    int colorLoc = GL.GetAttribLocation(axesShaderProgram, "aColor");
-                    if (colorLoc >= 0)
-                    {
-                        GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
-                        GL.EnableVertexAttribArray(colorLoc);
-                    }
-                    
-                    // 坐标轴以填充模式渲染（3D几何体）
-                    GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-                    
-                    // 绘制坐标轴（使用三角形渲染3D几何体）
-                    GL.DrawElements(PrimitiveType.Triangles, Scene.CoordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
-                    
-                    // 完全恢复OpenGL状态
-                    GL.UseProgram(savedProgram);
-                    GL.BindVertexArray(savedVAO);
-                    GL.PolygonMode(MaterialFace.FrontAndBack, (PolygonMode)savedPolygonMode);
-                    
-                    // 恢复深度测试状态
-                    if (savedDepthTest)
-                        GL.Enable(EnableCap.DepthTest);
-                    else
-                        GL.Disable(EnableCap.DepthTest);
-                    GL.DepthMask(savedDepthMask);
-                    GL.DepthFunc((DepthFunction)savedDepthFunc);
-                }
-            }
+            // 坐标轴现在作为普通模型处理，不需要独立渲染逻辑
             
             GL.BindVertexArray(0);
         }
