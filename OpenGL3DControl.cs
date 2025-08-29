@@ -722,8 +722,8 @@ void main()
                 }
             }
             
-            // 渲染坐标轴（如果启用）
-            if (Scene.ShowCoordinateAxes && Scene.CoordinateAxes != null)
+            // 渲染坐标轴（如果启用）- 作为独立模型处理
+            if (Scene.ShowCoordinateAxes && Scene.CoordinateAxes != null && Scene.CoordinateAxes.Visible)
             {
                 // 如果坐标轴没有渲染数据，先创建
                 if (!_modelRenderData.ContainsKey(Scene.CoordinateAxes))
@@ -737,38 +737,52 @@ void main()
                     var renderData = _modelRenderData[Scene.CoordinateAxes];
                     var modelMatrix = Scene.CoordinateAxes.GetModelMatrix();
                     
-                    if (modelLoc >= 0) 
-                    {
-                        GL.UniformMatrix4(modelLoc, false, ref modelMatrix);
-                    }
+                    // 保存当前OpenGL状态
+                    GL.GetInteger(GetPName.CurrentProgram, out int savedProgram);
+                    GL.GetInteger(GetPName.VertexArrayBinding, out int savedVAO);
+                    GL.GetInteger(GetPName.PolygonMode, out int savedPolygonMode);
                     
-                    // 绑定VAO并设置顶点属性
+                    // 坐标轴使用顶点着色模式，独立设置着色器
+                    int axesShaderProgram = _shaderPrograms[ShadingMode.Vertex];
+                    GL.UseProgram(axesShaderProgram);
+                    
+                    // 设置坐标轴的变换矩阵
+                    int axesViewLoc = GL.GetUniformLocation(axesShaderProgram, "view");
+                    int axesProjLoc = GL.GetUniformLocation(axesShaderProgram, "projection");
+                    int axesModelLoc = GL.GetUniformLocation(axesShaderProgram, "model");
+                    
+                    if (axesViewLoc >= 0) GL.UniformMatrix4(axesViewLoc, false, ref view);
+                    if (axesProjLoc >= 0) GL.UniformMatrix4(axesProjLoc, false, ref projection);
+                    if (axesModelLoc >= 0) GL.UniformMatrix4(axesModelLoc, false, ref modelMatrix);
+                    
+                    // 绑定坐标轴VAO并设置顶点属性
                     GL.BindVertexArray(renderData.VAO);
                     
-                    // 设置顶点属性（坐标轴使用顶点着色）
-                    int posLoc = GL.GetAttribLocation(currentShaderProgram, "aPosition");
-                    if (posLoc >= 0)
+                    // 设置顶点属性（坐标轴使用位置+颜色）
+                    int positionLoc = GL.GetAttribLocation(axesShaderProgram, "aPosition");
+                    if (positionLoc >= 0)
                     {
-                        GL.VertexAttribPointer(posLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
-                        GL.EnableVertexAttribArray(posLoc);
+                        GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+                        GL.EnableVertexAttribArray(positionLoc);
                     }
                     
-                    int colorLoc = GL.GetAttribLocation(currentShaderProgram, "aColor");
+                    int colorLoc = GL.GetAttribLocation(axesShaderProgram, "aColor");
                     if (colorLoc >= 0)
                     {
                         GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
                         GL.EnableVertexAttribArray(colorLoc);
                     }
                     
-                    // 保存当前多边形模式
-                    GL.GetInteger(GetPName.PolygonMode, out int currentPolygonMode);
-                    
                     // 坐标轴始终以线框模式渲染
                     GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+                    
+                    // 绘制坐标轴
                     GL.DrawElements(PrimitiveType.Lines, Scene.CoordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
                     
-                    // 恢复之前的多边形模式
-                    GL.PolygonMode(MaterialFace.FrontAndBack, (PolygonMode)currentPolygonMode);
+                    // 完全恢复OpenGL状态
+                    GL.UseProgram(savedProgram);
+                    GL.BindVertexArray(savedVAO);
+                    GL.PolygonMode(MaterialFace.FrontAndBack, (PolygonMode)savedPolygonMode);
                 }
             }
             
