@@ -1,7 +1,8 @@
 using Avalonia.Controls;
-using System;
-using System.Linq;
+using Avalonia.Interactivity;
 using OpenTK.Mathematics;
+using System;
+using System.ComponentModel;
 
 namespace Avalonia3DControl;
 
@@ -112,6 +113,11 @@ public partial class MainWindow : Window
             waveModelRadio.IsCheckedChanged += (s, e) => { if (waveModelRadio.IsChecked == true) ShowOnlyModel(openGLControl, "Wave"); };
         if (waterDropModelRadio != null)
             waterDropModelRadio.IsCheckedChanged += (s, e) => { if (waterDropModelRadio.IsChecked == true) ShowOnlyModel(openGLControl, "WaterDrop"); };
+        
+        // 坐标轴复选框事件处理
+        var showCoordinateAxesCheckBox = this.FindControl<CheckBox>("ShowCoordinateAxesCheckBox");
+        if (showCoordinateAxesCheckBox != null)
+            showCoordinateAxesCheckBox.IsCheckedChanged += (s, e) => { openGLControl.SetCoordinateAxesVisible(showCoordinateAxesCheckBox.IsChecked == true); };
     }
     
     private void ApplyMaterialToAllModels(OpenGL3DControl openGLControl, Material material)

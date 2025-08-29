@@ -722,6 +722,50 @@ void main()
                 }
             }
             
+            // 渲染坐标轴（如果启用）
+            if (Scene.ShowCoordinateAxes && Scene.CoordinateAxes != null)
+            {
+                // 如果坐标轴没有渲染数据，先创建
+                if (!_modelRenderData.ContainsKey(Scene.CoordinateAxes))
+                {
+                    CreateModelBuffers(Scene.CoordinateAxes);
+                }
+                
+                // 检查是否成功创建了渲染数据
+                if (_modelRenderData.ContainsKey(Scene.CoordinateAxes))
+                {
+                    var renderData = _modelRenderData[Scene.CoordinateAxes];
+                    var modelMatrix = Scene.CoordinateAxes.GetModelMatrix();
+                    
+                    if (modelLoc >= 0) 
+                    {
+                        GL.UniformMatrix4(modelLoc, false, ref modelMatrix);
+                    }
+                    
+                    // 绑定VAO并设置顶点属性
+                    GL.BindVertexArray(renderData.VAO);
+                    
+                    // 设置顶点属性（坐标轴使用顶点着色）
+                    int posLoc = GL.GetAttribLocation(currentShaderProgram, "aPosition");
+                    if (posLoc >= 0)
+                    {
+                        GL.VertexAttribPointer(posLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+                        GL.EnableVertexAttribArray(posLoc);
+                    }
+                    
+                    int colorLoc = GL.GetAttribLocation(currentShaderProgram, "aColor");
+                    if (colorLoc >= 0)
+                    {
+                        GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+                        GL.EnableVertexAttribArray(colorLoc);
+                    }
+                    
+                    // 坐标轴始终以线框模式渲染
+                    GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+                    GL.DrawElements(PrimitiveType.Lines, Scene.CoordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
+                }
+            }
+            
             GL.BindVertexArray(0);
         }
         #endregion
@@ -824,6 +868,25 @@ void main()
             }
             
             RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 设置坐标轴显示状态
+        /// </summary>
+        /// <param name="show">是否显示坐标轴</param>
+        public void SetCoordinateAxesVisible(bool show)
+        {
+            Scene.SetCoordinateAxesVisible(show);
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 获取坐标轴显示状态
+        /// </summary>
+        /// <returns>是否显示坐标轴</returns>
+        public bool GetCoordinateAxesVisible()
+        {
+            return Scene.ShowCoordinateAxes;
         }
         #endregion
 

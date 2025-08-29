@@ -13,6 +13,10 @@ namespace Avalonia3DControl
         public List<Light> Lights { get; set; }
         public List<Model3D> Models { get; set; }
         public Vector3 BackgroundColor { get; set; }
+        
+        // 坐标轴作为独立组件
+        public Model3D? CoordinateAxes { get; set; }
+        public bool ShowCoordinateAxes { get; set; } = false;
 
         public Scene3D()
         {
@@ -23,6 +27,10 @@ namespace Avalonia3DControl
             
             // 添加默认光源
             AddDefaultLight();
+            
+            // 初始化坐标轴
+            CoordinateAxes = GeometryFactory.CreateCoordinateAxes();
+            CoordinateAxes.Name = "CoordinateAxes";
             
             // 场景初始化为空，模型将按需动态加载
         }
@@ -106,6 +114,15 @@ namespace Avalonia3DControl
             }
             
             return null;
+        }
+        
+        /// <summary>
+        /// 设置坐标轴显示状态
+        /// </summary>
+        /// <param name="show">是否显示坐标轴</param>
+        public void SetCoordinateAxesVisible(bool show)
+        {
+            ShowCoordinateAxes = show;
         }
 
         private void AddDefaultLight()
@@ -462,7 +479,7 @@ namespace Avalonia3DControl
             return sphere;
         }
 
-        public static Model3D CreateWave(float width = 4.0f, float height = 1.0f, int segments = 64, float time = 0.0f)
+        public static Model3D CreateWave(float width = 4.0f, float height = 1.0f, int segments = 128, float time = 0.0f)
         {
             var vertices = new List<float>();
             var indices = new List<uint>();
@@ -475,21 +492,52 @@ namespace Avalonia3DControl
                     float x = (i / (float)segments - 0.5f) * width;
                     float z = (j / (float)segments - 0.5f) * width;
                     
-                    // 波浪函数：多个正弦波叠加
-                    float y = height * (MathF.Sin(x * 2.0f + time) * 0.5f + 
-                                       MathF.Sin(z * 1.5f + time * 0.8f) * 0.3f + 
-                                       MathF.Sin((x + z) * 1.2f + time * 1.2f) * 0.2f);
+                    // 波浪函数：多个正弦波叠加，创建更复杂的波浪效果
+                    float y = height * (
+                        MathF.Sin(x * 3.0f + time) * 0.4f +                    // 主波浪
+                        MathF.Sin(z * 2.5f + time * 0.8f) * 0.3f +            // 横向波浪
+                        MathF.Sin((x + z) * 2.0f + time * 1.2f) * 0.2f +      // 对角波浪
+                        MathF.Sin(x * 5.0f + z * 3.0f + time * 1.5f) * 0.15f + // 高频细节波
+                        MathF.Sin((x - z) * 1.8f + time * 0.6f) * 0.25f +     // 反对角波浪
+                        MathF.Sin(x * 4.5f + time * 2.0f) * 0.1f +             // X方向高频波
+                        MathF.Sin(z * 4.0f + time * 1.8f) * 0.12f +            // Z方向高频波
+                        MathF.Sin(MathF.Sqrt(x*x + z*z) * 2.5f + time * 1.3f) * 0.18f // 径向波浪
+                    );
                     
                     // 位置
                     vertices.Add(x);
                     vertices.Add(y);
                     vertices.Add(z);
                     
-                    // 基于高度的颜色
-                    float normalizedY = (y + height) / (2 * height);
-                    vertices.Add(0.1f + normalizedY * 0.3f); // 红色分量
-                    vertices.Add(0.3f + normalizedY * 0.4f); // 绿色分量
-                    vertices.Add(0.8f + normalizedY * 0.2f); // 蓝色分量
+                    // 基于高度的渐变颜色：最低点蓝色 -> 绿色 -> 黄色 -> 最高点红色
+                    float normalizedY = (y + height) / (2 * height); // 归一化到[0,1]
+                    
+                    float r, g, b;
+                    if (normalizedY < 0.33f) // 蓝色到绿色
+                    {
+                        float t = normalizedY / 0.33f;
+                        r = 0.0f;
+                        g = t;
+                        b = 1.0f - t;
+                    }
+                    else if (normalizedY < 0.66f) // 绿色到黄色
+                    {
+                        float t = (normalizedY - 0.33f) / 0.33f;
+                        r = t;
+                        g = 1.0f;
+                        b = 0.0f;
+                    }
+                    else // 黄色到红色
+                    {
+                        float t = (normalizedY - 0.66f) / 0.34f;
+                        r = 1.0f;
+                        g = 1.0f - t;
+                        b = 0.0f;
+                    }
+                    
+                    vertices.Add(r); // 红色分量
+                    vertices.Add(g); // 绿色分量
+                    vertices.Add(b); // 蓝色分量
                 }
             }
 
@@ -527,6 +575,136 @@ namespace Avalonia3DControl
             // 设置玻璃材质
             wave.Material = Material.CreateGlass(new Vector3(0.2f, 0.6f, 0.9f));
             return wave;
+        }
+        
+        /// <summary>
+        /// 创建三维坐标轴
+        /// </summary>
+        /// <param name="length">坐标轴长度</param>
+        /// <returns>坐标轴模型</returns>
+        public static Model3D CreateCoordinateAxes(float length = 2.0f)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+            
+            // X轴 - 红色
+            vertices.AddRange(new float[] { 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f }); // 原点
+            vertices.AddRange(new float[] { length, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f }); // X轴终点
+            
+            // Y轴 - 绿色
+            vertices.AddRange(new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f }); // 原点
+            vertices.AddRange(new float[] { 0.0f, length, 0.0f, 0.0f, 1.0f, 0.0f }); // Y轴终点
+            
+            // Z轴 - 蓝色
+            vertices.AddRange(new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f }); // 原点
+            vertices.AddRange(new float[] { 0.0f, 0.0f, length, 0.0f, 0.0f, 1.0f }); // Z轴终点
+            
+            // 线段索引
+            indices.AddRange(new uint[] { 0, 1 }); // X轴
+            indices.AddRange(new uint[] { 2, 3 }); // Y轴
+            indices.AddRange(new uint[] { 4, 5 }); // Z轴
+            
+            var axes = new Model3D
+            {
+                Name = "CoordinateAxes",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = 6,
+                IndexCount = indices.Count
+            };
+            
+            axes.Material = Material.CreateMetal(new Vector3(0.8f, 0.8f, 0.8f));
+            return axes;
+        }
+        
+        /// <summary>
+        /// 创建外接矩形框（线框模式）
+        /// </summary>
+        /// <param name="minBounds">最小边界点</param>
+        /// <param name="maxBounds">最大边界点</param>
+        /// <returns>边界框模型</returns>
+        public static Model3D CreateBoundingBox(Vector3 minBounds, Vector3 maxBounds)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+            
+            // 8个顶点 - 统一白色
+            float[] boxVertices = {
+                // 前面4个顶点
+                minBounds.X, minBounds.Y, maxBounds.Z, 1.0f, 1.0f, 1.0f, // 0: 前左下
+                maxBounds.X, minBounds.Y, maxBounds.Z, 1.0f, 1.0f, 1.0f, // 1: 前右下
+                maxBounds.X, maxBounds.Y, maxBounds.Z, 1.0f, 1.0f, 1.0f, // 2: 前右上
+                minBounds.X, maxBounds.Y, maxBounds.Z, 1.0f, 1.0f, 1.0f, // 3: 前左上
+                
+                // 后面4个顶点
+                minBounds.X, minBounds.Y, minBounds.Z, 1.0f, 1.0f, 1.0f, // 4: 后左下
+                maxBounds.X, minBounds.Y, minBounds.Z, 1.0f, 1.0f, 1.0f, // 5: 后右下
+                maxBounds.X, maxBounds.Y, minBounds.Z, 1.0f, 1.0f, 1.0f, // 6: 后右上
+                minBounds.X, maxBounds.Y, minBounds.Z, 1.0f, 1.0f, 1.0f, // 7: 后左上
+            };
+            
+            vertices.AddRange(boxVertices);
+            
+            // 12条边的线段索引
+            uint[] boxIndices = {
+                // 前面4条边
+                0, 1, 1, 2, 2, 3, 3, 0,
+                // 后面4条边
+                4, 5, 5, 6, 6, 7, 7, 4,
+                // 连接前后面的4条边
+                0, 4, 1, 5, 2, 6, 3, 7
+            };
+            
+            indices.AddRange(boxIndices);
+            
+            var boundingBox = new Model3D
+            {
+                Name = "BoundingBox",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = 8,
+                IndexCount = indices.Count
+            };
+            
+            boundingBox.Material = Material.CreateMetal(new Vector3(0.7f, 0.7f, 0.7f));
+            return boundingBox;
+        }
+        
+        /// <summary>
+        /// 为指定模型创建外接矩形框
+        /// </summary>
+        /// <param name="model">目标模型</param>
+        /// <returns>该模型的边界框</returns>
+        public static Model3D CreateBoundingBoxForModel(Model3D model)
+        {
+            if (model.Vertices == null || model.Vertices.Length == 0)
+                return CreateBoundingBox(new Vector3(-1, -1, -1), new Vector3(1, 1, 1));
+            
+            Vector3 min = new Vector3(float.MaxValue);
+            Vector3 max = new Vector3(float.MinValue);
+            
+            // 遍历所有顶点找到边界
+            for (int i = 0; i < model.Vertices.Length; i += 6) // 每个顶点6个分量（位置3 + 颜色3）
+            {
+                float x = model.Vertices[i];
+                float y = model.Vertices[i + 1];
+                float z = model.Vertices[i + 2];
+                
+                if (x < min.X) min.X = x;
+                if (y < min.Y) min.Y = y;
+                if (z < min.Z) min.Z = z;
+                
+                if (x > max.X) max.X = x;
+                if (y > max.Y) max.Y = y;
+                if (z > max.Z) max.Z = z;
+            }
+            
+            // 稍微扩大边界框
+            Vector3 padding = (max - min) * 0.05f;
+            min -= padding;
+            max += padding;
+            
+            return CreateBoundingBox(min, max);
         }
 
         public static Model3D CreateWaterDrop(float radius = 1.0f, int segments = 32)

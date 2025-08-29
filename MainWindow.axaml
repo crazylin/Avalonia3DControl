@@ -164,8 +164,21 @@
                                      GroupName="ModelSelection"
                                      Margin="0,2" 
                                      Foreground="#4C566A"/>
+
                     </StackPanel>
                     
+                    <!-- 坐标轴控制 -->
+                    <TextBlock Text="📐 坐标轴显示" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <CheckBox x:Name="ShowCoordinateAxesCheckBox" Content="显示坐标轴 (XYZ)" 
+                                  Margin="0,2" 
+                                  Foreground="#4C566A"/>
+                    </StackPanel>
                     
                     <!-- 材质预设按钮 -->
                     <TextBlock Text="🎭 材质预设" 
