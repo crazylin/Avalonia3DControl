@@ -85,22 +85,6 @@
                                Foreground="#5E81AC"/>
                     
                     <StackPanel Margin="0,0,0,15">
-                        <RadioButton x:Name="FlatShadingRadio" Content="平面着色" 
-                                     GroupName="ShadingMode" 
-                                     Margin="0,2" 
-                                     Foreground="#4C566A"/>
-                        <RadioButton x:Name="GouraudShadingRadio" Content="Gouraud着色" 
-                                     GroupName="ShadingMode" 
-                                     Margin="0,2" 
-                                     Foreground="#4C566A"/>
-                        <RadioButton x:Name="PhongShadingRadio" Content="Phong着色" 
-                                     GroupName="ShadingMode" 
-                                     Margin="0,2" 
-                                     Foreground="#4C566A"/>
-                        <RadioButton x:Name="WireframeShadingRadio" Content="线框模式" 
-                                     GroupName="ShadingMode" 
-                                     Margin="0,2" 
-                                     Foreground="#4C566A"/>
                         <RadioButton x:Name="VertexShadingRadio" Content="顶点着色" 
                                      GroupName="ShadingMode" 
                                      IsChecked="True" 
@@ -178,6 +162,38 @@
                         <CheckBox x:Name="ShowCoordinateAxesCheckBox" Content="显示坐标轴 (XYZ)" 
                                   Margin="0,2" 
                                   Foreground="#4C566A"/>
+                        <CheckBox x:Name="ShowMiniAxesCheckBox" Content="显示迷你坐标轴" 
+                                  Margin="0,2" 
+                                  Foreground="#4C566A"/>
+                        
+                        <!-- 迷你坐标轴位置选择 -->
+                        <TextBlock Text="位置:" 
+                                   FontSize="12" 
+                                   Margin="20,8,0,4" 
+                                   Foreground="#5E81AC"/>
+                        <StackPanel Margin="20,0,0,0">
+                            <RadioButton x:Name="MiniAxesTopLeftRadio" Content="左上角" 
+                                         GroupName="MiniAxesPosition" 
+                                         Margin="0,2" 
+                                         FontSize="11"
+                                         Foreground="#4C566A"/>
+                            <RadioButton x:Name="MiniAxesTopRightRadio" Content="右上角" 
+                                         GroupName="MiniAxesPosition" 
+                                         Margin="0,2" 
+                                         FontSize="11"
+                                         Foreground="#4C566A"/>
+                            <RadioButton x:Name="MiniAxesBottomLeftRadio" Content="左下角" 
+                                         GroupName="MiniAxesPosition" 
+                                         IsChecked="True" 
+                                         Margin="0,2" 
+                                         FontSize="11"
+                                         Foreground="#4C566A"/>
+                            <RadioButton x:Name="MiniAxesBottomRightRadio" Content="右下角" 
+                                         GroupName="MiniAxesPosition" 
+                                         Margin="0,2" 
+                                         FontSize="11"
+                                         Foreground="#4C566A"/>
+                        </StackPanel>
                     </StackPanel>
                     
                     <!-- 材质预设按钮 -->
@@ -187,23 +203,7 @@
                                Margin="0,0,0,8" 
                                Foreground="#5E81AC"/>
                     
-                    <StackPanel Margin="0,0,0,15">
-                        <Button x:Name="PlasticMaterialBtn" Content="塑料材质" 
-                                Margin="0,2" 
-                                Background="#BF616A" 
-                                Foreground="White" 
-                                Padding="8,4"/>
-                        <Button x:Name="MetalMaterialBtn" Content="金属材质" 
-                                Margin="0,2" 
-                                Background="#A3BE8C" 
-                                Foreground="White" 
-                                Padding="8,4"/>
-                        <Button x:Name="GlassMaterialBtn" Content="玻璃材质" 
-                                Margin="0,2" 
-                                Background="#88C0D0" 
-                                Foreground="White" 
-                                Padding="8,4"/>
-                    </StackPanel>
+                   
                     
                     <!-- 技术特性 -->
                     <TextBlock Text="⚡ 技术特性" 
