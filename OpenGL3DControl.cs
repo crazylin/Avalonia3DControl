@@ -134,7 +134,7 @@ namespace Avalonia3DControl
             GL.DepthFunc(DepthFunction.Less);
             GL.ClearColor(0.1f, 0.1f, 0.2f, 1.0f); // 更深的背景色以便看到模型
             
-            // 暂时禁用背面剔除来测试渲染问题
+            // 暂时禁用背面剔除进行调试
             GL.Disable(EnableCap.CullFace);
             
             // 启用混合
@@ -530,9 +530,7 @@ void main()
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
             GL.BufferData(BufferTarget.ElementArrayBuffer, model.Indices.Length * sizeof(uint), model.Indices, BufferUsageHint.StaticDraw);
 
-            // 暂时不设置顶点属性，在渲染时动态设置
-            // 这样可以避免在初始化时依赖特定的着色器程序
-
+            // 暂时不设置顶点属性，在渲染时根据着色器程序动态设置
             GL.BindVertexArray(0);
             
             _modelRenderData[model] = renderData;
@@ -587,53 +585,32 @@ void main()
                 if (textureLoc >= 0) GL.Uniform1(textureLoc, 0);
             }
             
-            // 绑定VAO并设置顶点属性
+            // 绑定VAO
             GL.BindVertexArray(renderData.VAO);
             
-            // 动态设置顶点属性指针
+            // 绑定VBO和EBO
+            GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
+            
+            // 设置顶点属性
             int positionLoc = GL.GetAttribLocation(shaderProgram, "aPosition");
             if (positionLoc >= 0)
             {
-                if (_currentShadingMode == ShadingMode.Texture)
-                {
-                    GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
-                }
-                else
-                {
-                    GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
-                }
+                GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
                 GL.EnableVertexAttribArray(positionLoc);
             }
             
-            // 根据着色模式设置不同的顶点属性
-            if (_currentShadingMode == ShadingMode.Texture)
+            int colorLoc = GL.GetAttribLocation(shaderProgram, "aColor");
+            if (colorLoc >= 0)
             {
-                int texCoordLoc = GL.GetAttribLocation(shaderProgram, "aTexCoord");
-                if (texCoordLoc >= 0)
-                {
-                    GL.VertexAttribPointer(texCoordLoc, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
-                    GL.EnableVertexAttribArray(texCoordLoc);
-                }
+                GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+                GL.EnableVertexAttribArray(colorLoc);
             }
-            else if (_currentShadingMode == ShadingMode.Vertex)
-            {
-                int colorLoc = GL.GetAttribLocation(shaderProgram, "aColor");
-                if (colorLoc >= 0)
-                {
-                    GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
-                    GL.EnableVertexAttribArray(colorLoc);
-                }
-            }
-            else if (_currentShadingMode != ShadingMode.Wireframe)
-            {
-                // 对于其他着色模式，我们仍然使用颜色数据，因为立方体顶点数据中没有法线
-                int colorLoc = GL.GetAttribLocation(shaderProgram, "aColor");
-                if (colorLoc >= 0)
-                {
-                    GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
-                    GL.EnableVertexAttribArray(colorLoc);
-                }
-            }
+            
+
+            
+            // 保存当前多边形模式
+            GL.GetInteger(GetPName.PolygonMode, out int currentPolygonMode);
             
             // 设置多边形模式
             bool isWireframe = (_currentRenderMode == RenderMode.Line) || (_currentShadingMode == ShadingMode.Wireframe);
@@ -658,6 +635,11 @@ void main()
                     GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
                     break;
             }
+            
+
+            
+            // 恢复多边形模式
+            GL.PolygonMode(MaterialFace.FrontAndBack, (PolygonMode)currentPolygonMode);
         }
         
         private void RenderCoordinateAxes(Model3D coordinateAxes, int shaderProgram, int modelLoc)
@@ -682,12 +664,18 @@ void main()
                 GL.UniformMatrix4(modelLoc, false, ref modelMatrix);
             }
             
-            // 坐标轴使用简单的顶点颜色着色
-            int wireframeColorLoc = GL.GetUniformLocation(shaderProgram, "wireframeColor");
-            if (wireframeColorLoc >= 0) GL.Uniform3(wireframeColorLoc, 1.0f, 1.0f, 1.0f); // 白色线框
+            // 保存当前深度测试状态
+            bool depthTestEnabled = GL.IsEnabled(EnableCap.DepthTest);
+            
+            // 禁用深度写入，但保持深度测试，确保坐标轴始终可见
+            GL.DepthMask(false);
             
             // 绑定VAO并设置顶点属性
             GL.BindVertexArray(renderData.VAO);
+            
+            // 绑定VBO和EBO
+            GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
             
             // 设置顶点位置属性
             int positionLoc = GL.GetAttribLocation(shaderProgram, "aPosition");
@@ -705,14 +693,15 @@ void main()
                 GL.EnableVertexAttribArray(colorLoc);
             }
             
-            // 坐标轴始终以线框模式渲染
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            // 设置线宽，使坐标轴更明显
+            GL.LineWidth(3.0f);
             
-            // 绘制坐标轴
-            GL.DrawElements(PrimitiveType.Lines, coordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
+            // 绘制坐标轴（实体模式）
+            GL.DrawElements(PrimitiveType.Triangles, coordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
             
-            // 恢复多边形模式为填充模式
-            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+            // 恢复深度写入和线宽
+            GL.DepthMask(true);
+            GL.LineWidth(1.0f);
         }
         #endregion
 
@@ -786,7 +775,22 @@ void main()
             // 独立渲染坐标轴（如果需要显示）
             if (Scene.ShowCoordinateAxes && Scene.CoordinateAxes != null)
             {
-                RenderCoordinateAxes(Scene.CoordinateAxes, currentShaderProgram, modelLoc);
+                // 使用顶点着色模式的着色器程序来渲染坐标轴
+                int axesShaderProgram = _shaderPrograms[ShadingMode.Vertex];
+                GL.UseProgram(axesShaderProgram);
+                
+                // 重新设置坐标轴的uniform变量
+                int axesViewLoc = GL.GetUniformLocation(axesShaderProgram, "view");
+                int axesProjLoc = GL.GetUniformLocation(axesShaderProgram, "projection");
+                int axesModelLoc = GL.GetUniformLocation(axesShaderProgram, "model");
+                
+                if (axesViewLoc >= 0) GL.UniformMatrix4(axesViewLoc, false, ref view);
+                if (axesProjLoc >= 0) GL.UniformMatrix4(axesProjLoc, false, ref projection);
+                
+                RenderCoordinateAxes(Scene.CoordinateAxes, axesShaderProgram, axesModelLoc);
+                
+                // 恢复原来的着色器程序
+                GL.UseProgram(currentShaderProgram);
             }
             
             GL.BindVertexArray(0);

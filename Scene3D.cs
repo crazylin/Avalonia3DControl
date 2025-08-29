@@ -15,7 +15,7 @@ namespace Avalonia3DControl
         public Vector3 BackgroundColor { get; set; }
         
         private Model3D? _currentModel;
-        private bool _coordinateAxesVisible = true;
+        private bool _coordinateAxesVisible = false;
         
         // 独立的坐标轴模型
         public Model3D? CoordinateAxes { get; private set; }
@@ -434,36 +434,60 @@ namespace Avalonia3DControl
         {
             float halfSize = size * 0.5f;
             
-            // 立方体的8个唯一顶点 (位置3 + 颜色3)
+            // 立方体的24个顶点 (每个面4个顶点，位置3 + 颜色3)
             var vertices = new float[]
             {
-                // 前面4个顶点
-                -halfSize, -halfSize,  halfSize,  1.0f, 0.0f, 0.0f, // 0: 前左下 - 红色
-                 halfSize, -halfSize,  halfSize,  0.0f, 1.0f, 0.0f, // 1: 前右下 - 绿色
-                 halfSize,  halfSize,  halfSize,  0.0f, 0.0f, 1.0f, // 2: 前右上 - 蓝色
-                -halfSize,  halfSize,  halfSize,  1.0f, 1.0f, 0.0f, // 3: 前左上 - 黄色
+                // 前面 (z = +halfSize)
+                -halfSize, -halfSize,  halfSize,  1.0f, 0.0f, 0.0f, // 0
+                 halfSize, -halfSize,  halfSize,  1.0f, 0.0f, 0.0f, // 1
+                 halfSize,  halfSize,  halfSize,  1.0f, 0.0f, 0.0f, // 2
+                -halfSize,  halfSize,  halfSize,  1.0f, 0.0f, 0.0f, // 3
                 
-                // 后面4个顶点
-                -halfSize, -halfSize, -halfSize,  1.0f, 0.0f, 1.0f, // 4: 后左下 - 紫色
-                 halfSize, -halfSize, -halfSize,  0.0f, 1.0f, 1.0f, // 5: 后右下 - 青色
-                 halfSize,  halfSize, -halfSize,  1.0f, 0.5f, 0.0f, // 6: 后右上 - 橙色
-                -halfSize,  halfSize, -halfSize,  0.5f, 0.5f, 0.5f, // 7: 后左上 - 灰色
+                // 后面 (z = -halfSize)
+                 halfSize, -halfSize, -halfSize,  0.0f, 1.0f, 0.0f, // 4
+                -halfSize, -halfSize, -halfSize,  0.0f, 1.0f, 0.0f, // 5
+                -halfSize,  halfSize, -halfSize,  0.0f, 1.0f, 0.0f, // 6
+                 halfSize,  halfSize, -halfSize,  0.0f, 1.0f, 0.0f, // 7
+                
+                // 左面 (x = -halfSize)
+                -halfSize, -halfSize, -halfSize,  0.0f, 0.0f, 1.0f, // 8
+                -halfSize, -halfSize,  halfSize,  0.0f, 0.0f, 1.0f, // 9
+                -halfSize,  halfSize,  halfSize,  0.0f, 0.0f, 1.0f, // 10
+                -halfSize,  halfSize, -halfSize,  0.0f, 0.0f, 1.0f, // 11
+                
+                // 右面 (x = +halfSize)
+                 halfSize, -halfSize,  halfSize,  1.0f, 1.0f, 0.0f, // 12
+                 halfSize, -halfSize, -halfSize,  1.0f, 1.0f, 0.0f, // 13
+                 halfSize,  halfSize, -halfSize,  1.0f, 1.0f, 0.0f, // 14
+                 halfSize,  halfSize,  halfSize,  1.0f, 1.0f, 0.0f, // 15
+                
+                // 底面 (y = -halfSize)
+                -halfSize, -halfSize, -halfSize,  1.0f, 0.0f, 1.0f, // 16
+                 halfSize, -halfSize, -halfSize,  1.0f, 0.0f, 1.0f, // 17
+                 halfSize, -halfSize,  halfSize,  1.0f, 0.0f, 1.0f, // 18
+                -halfSize, -halfSize,  halfSize,  1.0f, 0.0f, 1.0f, // 19
+                
+                // 顶面 (y = +halfSize)
+                -halfSize,  halfSize,  halfSize,  0.0f, 1.0f, 1.0f, // 20
+                 halfSize,  halfSize,  halfSize,  0.0f, 1.0f, 1.0f, // 21
+                 halfSize,  halfSize, -halfSize,  0.0f, 1.0f, 1.0f, // 22
+                -halfSize,  halfSize, -halfSize,  0.0f, 1.0f, 1.0f, // 23
             };
 
             var indices = new uint[]
             {
-                // 前面 (z = +halfSize) - 逆时针绕序
+                // 前面
                 0, 1, 2, 2, 3, 0,
-                // 后面 (z = -halfSize) - 逆时针绕序（从外部看）
-                5, 4, 7, 7, 6, 5,
-                // 左面 (x = -halfSize) - 逆时针绕序（从外部看）
-                4, 0, 3, 3, 7, 4,
-                // 右面 (x = +halfSize) - 逆时针绕序（从外部看）
-                1, 5, 6, 6, 2, 1,
-                // 底面 (y = -halfSize) - 逆时针绕序（从外部看）
-                4, 5, 1, 1, 0, 4,
-                // 顶面 (y = +halfSize) - 逆时针绕序（从外部看）
-                3, 2, 6, 6, 7, 3
+                // 后面
+                4, 5, 6, 6, 7, 4,
+                // 左面
+                8, 9, 10, 10, 11, 8,
+                // 右面
+                12, 13, 14, 14, 15, 12,
+                // 底面
+                16, 17, 18, 18, 19, 16,
+                // 顶面
+                20, 21, 22, 22, 23, 20
             };
 
             var cube = new Model3D
@@ -471,7 +495,7 @@ namespace Avalonia3DControl
                 Name = "Cube",
                 Vertices = vertices,
                 Indices = indices,
-                VertexCount = 8, // 立方体有8个唯一顶点
+                VertexCount = 24, // 立方体有24个顶点（每个面4个）
                 IndexCount = indices.Length
             };
             
@@ -640,47 +664,361 @@ namespace Avalonia3DControl
         }
         
         /// <summary>
-        /// 创建简单的线框坐标轴
+        /// 创建专业的3D坐标轴（圆柱+圆锥+原点球）
         /// </summary>
         /// <param name="length">坐标轴长度</param>
         /// <returns>坐标轴模型</returns>
         public static Model3D CreateCoordinateAxes(float length = 2.0f)
         {
-            // 创建简单的线框坐标轴：6个顶点，3条线
-            var vertices = new float[]
-            {
-                // X轴：原点到X正方向（红色）
-                0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, // 原点
-                length, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, // X轴终点
-                
-                // Y轴：原点到Y正方向（绿色）
-                0.0f, 0.0f, 0.0f,  0.0f, 1.0f, 0.0f, // 原点
-                0.0f, length, 0.0f,  0.0f, 1.0f, 0.0f, // Y轴终点
-                
-                // Z轴：原点到Z正方向（蓝色）
-                0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f, // 原点
-                0.0f, 0.0f, length,  0.0f, 0.0f, 1.0f, // Z轴终点
-            };
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+            uint vertexIndex = 0;
             
-            // 线段索引：每两个顶点组成一条线
-            var indices = new uint[]
-            {
-                0, 1, // X轴线段
-                2, 3, // Y轴线段
-                4, 5  // Z轴线段
-            };
+            float cylinderRadius = 0.02f;
+            float coneRadius = 0.05f;
+            float coneHeight = 0.15f;
+            float sphereRadius = 0.04f;
+            int segments = 8; // 圆形分段数
+            
+            // 1. 创建原点球体
+            CreateSphere(vertices, indices, ref vertexIndex, Vector3.Zero, sphereRadius, 
+                        new Vector3(1.0f, 1.0f, 1.0f), segments);
+            
+            // 2. 创建X轴（红色）
+            CreateAxis(vertices, indices, ref vertexIndex, 
+                      Vector3.UnitX, length, cylinderRadius, coneRadius, coneHeight,
+                      new Vector3(1.0f, 0.0f, 0.0f), segments);
+            
+            // 3. 创建Y轴（绿色）
+            CreateAxis(vertices, indices, ref vertexIndex, 
+                      Vector3.UnitY, length, cylinderRadius, coneRadius, coneHeight,
+                      new Vector3(0.0f, 1.0f, 0.0f), segments);
+            
+            // 4. 创建Z轴（蓝色）
+            CreateAxis(vertices, indices, ref vertexIndex, 
+                      Vector3.UnitZ, length, cylinderRadius, coneRadius, coneHeight,
+                      new Vector3(0.0f, 0.0f, 1.0f), segments);
+            
+            // 5. 添加坐标轴标签
+            float labelOffset = 0.1f;
+            float labelSize = 0.08f;
+            
+            // X轴标签（红色）
+            CreateAxisLabel(vertices, indices, ref vertexIndex, 
+                           new Vector3(length + labelOffset, 0, 0), labelSize, 
+                           new Vector3(1.0f, 0.0f, 0.0f), 'X');
+            
+            // Y轴标签（绿色）
+            CreateAxisLabel(vertices, indices, ref vertexIndex, 
+                           new Vector3(0, length + labelOffset, 0), labelSize, 
+                           new Vector3(0.0f, 1.0f, 0.0f), 'Y');
+            
+            // Z轴标签（蓝色）
+            CreateAxisLabel(vertices, indices, ref vertexIndex, 
+                           new Vector3(0, 0, length + labelOffset), labelSize, 
+                           new Vector3(0.0f, 0.0f, 1.0f), 'Z');
             
             var axes = new Model3D
             {
                 Name = "CoordinateAxes",
-                Vertices = vertices,
-                Indices = indices,
-                VertexCount = 6,
-                IndexCount = 6
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = vertices.Count / 6, // 每个顶点6个float（位置+颜色）
+                IndexCount = indices.Count
             };
             
             axes.Material = Material.CreateMetal(new Vector3(0.8f, 0.8f, 0.8f));
             return axes;
+        }
+        
+        /// <summary>
+        /// 创建单个坐标轴（圆柱+圆锥）
+        /// </summary>
+        private static void CreateAxis(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                     Vector3 direction, float length, float cylinderRadius, 
+                                     float coneRadius, float coneHeight, Vector3 color, int segments)
+        {
+            float cylinderLength = length - coneHeight;
+            
+            // 创建圆柱体
+            CreateCylinder(vertices, indices, ref vertexIndex, Vector3.Zero, direction, 
+                          cylinderLength, cylinderRadius, color, segments);
+            
+            // 创建圆锥体（箭头）
+            Vector3 coneBase = direction * cylinderLength;
+            CreateCone(vertices, indices, ref vertexIndex, coneBase, direction, 
+                      coneHeight, coneRadius, color, segments);
+        }
+        
+        /// <summary>
+        /// 创建圆柱体
+        /// </summary>
+        private static void CreateCylinder(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                         Vector3 start, Vector3 direction, float height, float radius, 
+                                         Vector3 color, int segments)
+        {
+            // 计算垂直于方向的两个正交向量
+            Vector3 up = Math.Abs(Vector3.Dot(direction, Vector3.UnitY)) < 0.9f ? Vector3.UnitY : Vector3.UnitZ;
+            Vector3 right = Vector3.Normalize(Vector3.Cross(direction, up));
+            up = Vector3.Cross(right, direction);
+            
+            uint baseIndex = vertexIndex;
+            
+            // 创建圆柱体顶点
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = 2.0f * MathF.PI * i / segments;
+                float x = MathF.Cos(angle) * radius;
+                float y = MathF.Sin(angle) * radius;
+                
+                Vector3 offset = right * x + up * y;
+                
+                // 底部顶点
+                Vector3 bottomPos = start + offset;
+                vertices.AddRange(new[] { bottomPos.X, bottomPos.Y, bottomPos.Z, color.X, color.Y, color.Z });
+                
+                // 顶部顶点
+                Vector3 topPos = start + direction * height + offset;
+                vertices.AddRange(new[] { topPos.X, topPos.Y, topPos.Z, color.X, color.Y, color.Z });
+            }
+            
+            // 创建圆柱体侧面三角形
+            for (int i = 0; i < segments; i++)
+            {
+                uint bottom1 = baseIndex + (uint)(i * 2);
+                uint top1 = bottom1 + 1;
+                uint bottom2 = baseIndex + (uint)((i + 1) * 2);
+                uint top2 = bottom2 + 1;
+                
+                // 两个三角形组成一个四边形
+                indices.AddRange(new[] { bottom1, top1, bottom2 });
+                indices.AddRange(new[] { top1, top2, bottom2 });
+            }
+            
+            vertexIndex += (uint)((segments + 1) * 2);
+        }
+        
+        /// <summary>
+        /// 创建圆锥体
+        /// </summary>
+        private static void CreateCone(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                     Vector3 baseCenter, Vector3 direction, float height, float radius, 
+                                     Vector3 color, int segments)
+        {
+            // 计算垂直于方向的两个正交向量
+            Vector3 up = Math.Abs(Vector3.Dot(direction, Vector3.UnitY)) < 0.9f ? Vector3.UnitY : Vector3.UnitZ;
+            Vector3 right = Vector3.Normalize(Vector3.Cross(direction, up));
+            up = Vector3.Cross(right, direction);
+            
+            uint baseIndex = vertexIndex;
+            
+            // 圆锥顶点
+            Vector3 tip = baseCenter + direction * height;
+            vertices.AddRange(new[] { tip.X, tip.Y, tip.Z, color.X, color.Y, color.Z });
+            vertexIndex++;
+            
+            // 圆锥底面顶点
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = 2.0f * MathF.PI * i / segments;
+                float x = MathF.Cos(angle) * radius;
+                float y = MathF.Sin(angle) * radius;
+                
+                Vector3 offset = right * x + up * y;
+                Vector3 pos = baseCenter + offset;
+                vertices.AddRange(new[] { pos.X, pos.Y, pos.Z, color.X, color.Y, color.Z });
+            }
+            
+            // 创建圆锥侧面三角形
+            for (int i = 0; i < segments; i++)
+            {
+                uint tip_idx = baseIndex;
+                uint base1 = baseIndex + 1 + (uint)i;
+                uint base2 = baseIndex + 1 + (uint)((i + 1) % (segments + 1));
+                
+                indices.AddRange(new[] { tip_idx, base1, base2 });
+            }
+            
+            vertexIndex += (uint)(segments + 1);
+        }
+        
+        /// <summary>
+        /// 创建球体
+        /// </summary>
+        private static void CreateSphere(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                       Vector3 center, float radius, Vector3 color, int segments)
+        {
+            uint baseIndex = vertexIndex;
+            
+            // 简化的球体：使用八面体细分
+            // 顶点
+            vertices.AddRange(new[] { center.X, center.Y + radius, center.Z, color.X, color.Y, color.Z }); // 顶部
+            vertices.AddRange(new[] { center.X, center.Y - radius, center.Z, color.X, color.Y, color.Z }); // 底部
+            vertices.AddRange(new[] { center.X + radius, center.Y, center.Z, color.X, color.Y, color.Z }); // 右
+            vertices.AddRange(new[] { center.X - radius, center.Y, center.Z, color.X, color.Y, color.Z }); // 左
+            vertices.AddRange(new[] { center.X, center.Y, center.Z + radius, color.X, color.Y, color.Z }); // 前
+            vertices.AddRange(new[] { center.X, center.Y, center.Z - radius, color.X, color.Y, color.Z }); // 后
+            
+            // 八面体的8个三角形面
+            uint[] sphereIndices = {
+                0, 2, 4,  0, 4, 3,  0, 3, 5,  0, 5, 2,  // 上半部分
+                1, 4, 2,  1, 3, 4,  1, 5, 3,  1, 2, 5   // 下半部分
+            };
+            
+            foreach (uint idx in sphereIndices)
+            {
+                indices.Add(baseIndex + idx);
+            }
+            
+            vertexIndex += 6;
+        }
+        
+        /// <summary>
+        /// 创建坐标轴标签（简化的文字几何体）
+        /// </summary>
+        private static void CreateAxisLabel(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                          Vector3 position, float size, Vector3 color, char label)
+        {
+            uint baseIndex = vertexIndex;
+            
+            // 创建简化的文字几何体，使用线条组成字母
+            switch (label)
+            {
+                case 'X':
+                    CreateLetterX(vertices, indices, ref vertexIndex, position, size, color);
+                    break;
+                case 'Y':
+                    CreateLetterY(vertices, indices, ref vertexIndex, position, size, color);
+                    break;
+                case 'Z':
+                    CreateLetterZ(vertices, indices, ref vertexIndex, position, size, color);
+                    break;
+            }
+        }
+        
+        /// <summary>
+        /// 创建字母X的几何体
+        /// </summary>
+        private static void CreateLetterX(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                        Vector3 center, float size, Vector3 color)
+        {
+            float halfSize = size * 0.5f;
+            
+            // X字母的四个端点
+            Vector3[] points = {
+                center + new Vector3(-halfSize, halfSize, 0),   // 左上
+                center + new Vector3(halfSize, -halfSize, 0),   // 右下
+                center + new Vector3(halfSize, halfSize, 0),    // 右上
+                center + new Vector3(-halfSize, -halfSize, 0)   // 左下
+            };
+            
+            // 创建两条对角线（使用小立方体代替线条以支持三角形渲染）
+            CreateThickLine(vertices, indices, ref vertexIndex, points[0], points[1], size * 0.1f, color);
+            CreateThickLine(vertices, indices, ref vertexIndex, points[2], points[3], size * 0.1f, color);
+        }
+        
+        /// <summary>
+        /// 创建字母Y的几何体
+        /// </summary>
+        private static void CreateLetterY(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                        Vector3 center, float size, Vector3 color)
+        {
+            float halfSize = size * 0.5f;
+            
+            Vector3[] points = {
+                center + new Vector3(-halfSize, halfSize, 0),   // 左上
+                center + new Vector3(0, 0, 0),                 // 中心
+                center + new Vector3(halfSize, halfSize, 0),    // 右上
+                center + new Vector3(0, -halfSize, 0)          // 底部
+            };
+            
+            // Y字母的三条线段
+            CreateThickLine(vertices, indices, ref vertexIndex, points[0], points[1], size * 0.1f, color);
+            CreateThickLine(vertices, indices, ref vertexIndex, points[2], points[1], size * 0.1f, color);
+            CreateThickLine(vertices, indices, ref vertexIndex, points[1], points[3], size * 0.1f, color);
+        }
+        
+        /// <summary>
+        /// 创建字母Z的几何体
+        /// </summary>
+        private static void CreateLetterZ(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                        Vector3 center, float size, Vector3 color)
+        {
+            float halfSize = size * 0.5f;
+            
+            Vector3[] points = {
+                center + new Vector3(-halfSize, halfSize, 0),   // 左上
+                center + new Vector3(halfSize, halfSize, 0),    // 右上
+                center + new Vector3(-halfSize, -halfSize, 0),  // 左下
+                center + new Vector3(halfSize, -halfSize, 0)    // 右下
+            };
+            
+            // Z字母的三条线段
+            CreateThickLine(vertices, indices, ref vertexIndex, points[0], points[1], size * 0.1f, color); // 上横线
+            CreateThickLine(vertices, indices, ref vertexIndex, points[1], points[2], size * 0.1f, color); // 对角线
+            CreateThickLine(vertices, indices, ref vertexIndex, points[2], points[3], size * 0.1f, color); // 下横线
+        }
+        
+        /// <summary>
+        /// 创建粗线条（用小立方体表示）
+        /// </summary>
+        private static void CreateThickLine(List<float> vertices, List<uint> indices, ref uint vertexIndex,
+                                          Vector3 start, Vector3 end, float thickness, Vector3 color)
+        {
+            uint baseIndex = vertexIndex;
+            
+            Vector3 direction = Vector3.Normalize(end - start);
+            float length = (end - start).Length;
+            Vector3 center = (start + end) * 0.5f;
+            
+            // 计算垂直于线条的向量
+            Vector3 up = Math.Abs(Vector3.Dot(direction, Vector3.UnitY)) < 0.9f ? Vector3.UnitY : Vector3.UnitZ;
+            Vector3 right = Vector3.Normalize(Vector3.Cross(direction, up));
+            up = Vector3.Cross(right, direction);
+            
+            float halfThickness = thickness * 0.5f;
+            float halfLength = length * 0.5f;
+            
+            // 创建立方体的8个顶点
+            Vector3[] cubeVertices = {
+                center + direction * halfLength + right * halfThickness + up * halfThickness,
+                center + direction * halfLength + right * halfThickness - up * halfThickness,
+                center + direction * halfLength - right * halfThickness + up * halfThickness,
+                center + direction * halfLength - right * halfThickness - up * halfThickness,
+                center - direction * halfLength + right * halfThickness + up * halfThickness,
+                center - direction * halfLength + right * halfThickness - up * halfThickness,
+                center - direction * halfLength - right * halfThickness + up * halfThickness,
+                center - direction * halfLength - right * halfThickness - up * halfThickness
+            };
+            
+            // 添加顶点
+            foreach (var vertex in cubeVertices)
+            {
+                vertices.AddRange(new[] { vertex.X, vertex.Y, vertex.Z, color.X, color.Y, color.Z });
+            }
+            
+            // 立方体的12个三角形面（每个面2个三角形）
+            uint[] cubeIndices = {
+                // 前面
+                0, 1, 2,  1, 3, 2,
+                // 后面
+                4, 6, 5,  5, 6, 7,
+                // 左面
+                4, 0, 6,  0, 2, 6,
+                // 右面
+                1, 5, 3,  5, 7, 3,
+                // 上面
+                4, 5, 0,  5, 1, 0,
+                // 下面
+                2, 3, 6,  3, 7, 6
+            };
+            
+            foreach (uint idx in cubeIndices)
+            {
+                indices.Add(baseIndex + idx);
+            }
+            
+            vertexIndex += 8;
         }
         
         /// <summary>
