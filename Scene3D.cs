@@ -14,9 +14,12 @@ namespace Avalonia3DControl
         public List<Model3D> Models { get; set; }
         public Vector3 BackgroundColor { get; set; }
         
-        // 坐标轴作为独立组件
-        public Model3D? CoordinateAxes { get; set; }
-        public bool ShowCoordinateAxes { get; set; } = false;
+        private Model3D? _currentModel;
+        private bool _coordinateAxesVisible = true;
+        
+        // 独立的坐标轴模型
+        public Model3D? CoordinateAxes { get; private set; }
+        public bool ShowCoordinateAxes => _coordinateAxesVisible && CoordinateAxes != null;
 
         public Scene3D()
         {
@@ -115,10 +118,11 @@ namespace Avalonia3DControl
                 }
             }
             
-            // 如果坐标轴显示开关打开，将坐标轴也作为普通模型添加
-            if (ShowCoordinateAxes && CoordinateAxes != null)
+            // 坐标轴不再作为普通模型处理，将独立渲染
+            // 确保坐标轴不在普通模型列表中
+            if (CoordinateAxes != null && Models.Contains(CoordinateAxes))
             {
-                Models.Add(CoordinateAxes);
+                Models.Remove(CoordinateAxes);
             }
             
             return mainModel;
@@ -128,16 +132,22 @@ namespace Avalonia3DControl
         /// 设置坐标轴显示状态
         /// </summary>
         /// <param name="show">是否显示坐标轴</param>
-        public void SetCoordinateAxesVisible(bool show)
+        public void SetCoordinateAxesVisible(bool visible)
         {
-            ShowCoordinateAxes = show;
+            _coordinateAxesVisible = visible;
             
-            // 重新构建模型列表以包含或排除坐标轴
-            if (show && CoordinateAxes != null && !Models.Contains(CoordinateAxes))
+            if (visible)
             {
-                Models.Add(CoordinateAxes);
+                // 创建坐标轴模型（如果还没有创建）
+                 if (CoordinateAxes == null)
+                 {
+                     CoordinateAxes = GeometryFactory.CreateCoordinateAxes();
+                 }
             }
-            else if (!show && CoordinateAxes != null && Models.Contains(CoordinateAxes))
+            
+            // 坐标轴不再作为普通模型处理，完全独立渲染
+            // 移除坐标轴从普通模型列表中（如果存在）
+            if (CoordinateAxes != null && Models.Contains(CoordinateAxes))
             {
                 Models.Remove(CoordinateAxes);
             }
@@ -630,64 +640,43 @@ namespace Avalonia3DControl
         }
         
         /// <summary>
-        /// 创建三维坐标轴（3D箭头形式：圆柱+锥型+原点小球）
+        /// 创建简单的线框坐标轴
         /// </summary>
         /// <param name="length">坐标轴长度</param>
         /// <returns>坐标轴模型</returns>
         public static Model3D CreateCoordinateAxes(float length = 2.0f)
         {
-            var vertices = new List<float>();
-            var indices = new List<uint>();
-            uint vertexIndex = 0;
-            
-            float cylinderRadius = 0.02f;
-            float coneRadius = 0.05f;
-            float coneHeight = 0.15f;
-            float sphereRadius = 0.04f;
-            int segments = 12; // 圆柱和锥体的分段数
-            
-            // 1. 创建原点小球
-            var sphereVertices = CreateSphereVertices(Vector3.Zero, sphereRadius, segments, new Vector3(0.8f, 0.8f, 0.8f));
-            vertices.AddRange(sphereVertices.vertices);
-            foreach (var index in sphereVertices.indices)
+            // 创建简单的线框坐标轴：6个顶点，3条线
+            var vertices = new float[]
             {
-                indices.Add(index + vertexIndex);
-            }
-            vertexIndex += (uint)(sphereVertices.vertices.Count / 6);
+                // X轴：原点到X正方向（红色）
+                0.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, // 原点
+                length, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f, // X轴终点
+                
+                // Y轴：原点到Y正方向（绿色）
+                0.0f, 0.0f, 0.0f,  0.0f, 1.0f, 0.0f, // 原点
+                0.0f, length, 0.0f,  0.0f, 1.0f, 0.0f, // Y轴终点
+                
+                // Z轴：原点到Z正方向（蓝色）
+                0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f, // 原点
+                0.0f, 0.0f, length,  0.0f, 0.0f, 1.0f, // Z轴终点
+            };
             
-            // 2. 创建X轴（红色）
-            var xAxisData = CreateAxisArrow(Vector3.Zero, new Vector3(length, 0, 0), cylinderRadius, coneRadius, coneHeight, segments, new Vector3(1.0f, 0.0f, 0.0f));
-            vertices.AddRange(xAxisData.vertices);
-            foreach (var index in xAxisData.indices)
+            // 线段索引：每两个顶点组成一条线
+            var indices = new uint[]
             {
-                indices.Add(index + vertexIndex);
-            }
-            vertexIndex += (uint)(xAxisData.vertices.Count / 6);
-            
-            // 3. 创建Y轴（绿色）
-            var yAxisData = CreateAxisArrow(Vector3.Zero, new Vector3(0, length, 0), cylinderRadius, coneRadius, coneHeight, segments, new Vector3(0.0f, 1.0f, 0.0f));
-            vertices.AddRange(yAxisData.vertices);
-            foreach (var index in yAxisData.indices)
-            {
-                indices.Add(index + vertexIndex);
-            }
-            vertexIndex += (uint)(yAxisData.vertices.Count / 6);
-            
-            // 4. 创建Z轴（蓝色）
-            var zAxisData = CreateAxisArrow(Vector3.Zero, new Vector3(0, 0, length), cylinderRadius, coneRadius, coneHeight, segments, new Vector3(0.0f, 0.0f, 1.0f));
-            vertices.AddRange(zAxisData.vertices);
-            foreach (var index in zAxisData.indices)
-            {
-                indices.Add(index + vertexIndex);
-            }
+                0, 1, // X轴线段
+                2, 3, // Y轴线段
+                4, 5  // Z轴线段
+            };
             
             var axes = new Model3D
             {
                 Name = "CoordinateAxes",
-                Vertices = vertices.ToArray(),
-                Indices = indices.ToArray(),
-                VertexCount = vertices.Count / 6,
-                IndexCount = indices.Count
+                Vertices = vertices,
+                Indices = indices,
+                VertexCount = 6,
+                IndexCount = 6
             };
             
             axes.Material = Material.CreateMetal(new Vector3(0.8f, 0.8f, 0.8f));

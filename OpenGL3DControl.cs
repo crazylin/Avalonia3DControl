@@ -537,6 +537,183 @@ void main()
             
             _modelRenderData[model] = renderData;
         }
+        
+        private void RenderModel(Model3D model, int shaderProgram, int modelLoc)
+        {
+            // 如果模型没有渲染数据，先创建
+            if (!_modelRenderData.ContainsKey(model))
+            {
+                CreateModelBuffers(model);
+            }
+            
+            // 检查是否成功创建了渲染数据
+            if (!_modelRenderData.ContainsKey(model))
+            {
+                return;
+            }
+            
+            var renderData = _modelRenderData[model];
+            var modelMatrix = model.GetModelMatrix();
+            
+            if (modelLoc >= 0) 
+            {
+                GL.UniformMatrix4(modelLoc, false, ref modelMatrix);
+            }
+            
+            // 设置材质uniform变量
+            if (_currentShadingMode != ShadingMode.Wireframe && _currentShadingMode != ShadingMode.Vertex && model.Material != null)
+            {
+                int ambientLoc = GL.GetUniformLocation(shaderProgram, "materialAmbient");
+                int diffuseLoc = GL.GetUniformLocation(shaderProgram, "materialDiffuse");
+                int specularLoc = GL.GetUniformLocation(shaderProgram, "materialSpecular");
+                int shininessLoc = GL.GetUniformLocation(shaderProgram, "materialShininess");
+                
+                if (ambientLoc >= 0) GL.Uniform3(ambientLoc, model.Material.Ambient.X, model.Material.Ambient.Y, model.Material.Ambient.Z);
+                if (diffuseLoc >= 0) GL.Uniform3(diffuseLoc, model.Material.Diffuse.X, model.Material.Diffuse.Y, model.Material.Diffuse.Z);
+                if (specularLoc >= 0) GL.Uniform3(specularLoc, model.Material.Specular.X, model.Material.Specular.Y, model.Material.Specular.Z);
+                if (shininessLoc >= 0) GL.Uniform1(shininessLoc, model.Material.Shininess);
+            }
+            else if (_currentShadingMode == ShadingMode.Wireframe)
+            {
+                int wireframeColorLoc = GL.GetUniformLocation(shaderProgram, "wireframeColor");
+                if (wireframeColorLoc >= 0) GL.Uniform3(wireframeColorLoc, 1.0f, 1.0f, 1.0f); // 白色线框
+            }
+            else if (_currentShadingMode == ShadingMode.Texture)
+            {
+                // 绑定纹理
+                GL.ActiveTexture(TextureUnit.Texture0);
+                GL.BindTexture(TextureTarget.Texture2D, _defaultTexture);
+                int textureLoc = GL.GetUniformLocation(shaderProgram, "uTexture");
+                if (textureLoc >= 0) GL.Uniform1(textureLoc, 0);
+            }
+            
+            // 绑定VAO并设置顶点属性
+            GL.BindVertexArray(renderData.VAO);
+            
+            // 动态设置顶点属性指针
+            int positionLoc = GL.GetAttribLocation(shaderProgram, "aPosition");
+            if (positionLoc >= 0)
+            {
+                if (_currentShadingMode == ShadingMode.Texture)
+                {
+                    GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
+                }
+                else
+                {
+                    GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+                }
+                GL.EnableVertexAttribArray(positionLoc);
+            }
+            
+            // 根据着色模式设置不同的顶点属性
+            if (_currentShadingMode == ShadingMode.Texture)
+            {
+                int texCoordLoc = GL.GetAttribLocation(shaderProgram, "aTexCoord");
+                if (texCoordLoc >= 0)
+                {
+                    GL.VertexAttribPointer(texCoordLoc, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
+                    GL.EnableVertexAttribArray(texCoordLoc);
+                }
+            }
+            else if (_currentShadingMode == ShadingMode.Vertex)
+            {
+                int colorLoc = GL.GetAttribLocation(shaderProgram, "aColor");
+                if (colorLoc >= 0)
+                {
+                    GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+                    GL.EnableVertexAttribArray(colorLoc);
+                }
+            }
+            else if (_currentShadingMode != ShadingMode.Wireframe)
+            {
+                // 对于其他着色模式，我们仍然使用颜色数据，因为立方体顶点数据中没有法线
+                int colorLoc = GL.GetAttribLocation(shaderProgram, "aColor");
+                if (colorLoc >= 0)
+                {
+                    GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+                    GL.EnableVertexAttribArray(colorLoc);
+                }
+            }
+            
+            // 设置多边形模式
+            bool isWireframe = (_currentRenderMode == RenderMode.Line) || (_currentShadingMode == ShadingMode.Wireframe);
+            if (isWireframe)
+            {
+                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            }
+            else
+            {
+                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+            }
+            
+            // 绘制模型
+            switch (_currentRenderMode)
+            {
+                case RenderMode.Point:
+                    GL.DrawElements(PrimitiveType.Points, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+                    break;
+                case RenderMode.Line:
+                case RenderMode.Fill:
+                default:
+                    GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+                    break;
+            }
+        }
+        
+        private void RenderCoordinateAxes(Model3D coordinateAxes, int shaderProgram, int modelLoc)
+        {
+            // 如果坐标轴没有渲染数据，先创建
+            if (!_modelRenderData.ContainsKey(coordinateAxes))
+            {
+                CreateModelBuffers(coordinateAxes);
+            }
+            
+            // 检查是否成功创建了渲染数据
+            if (!_modelRenderData.ContainsKey(coordinateAxes))
+            {
+                return;
+            }
+            
+            var renderData = _modelRenderData[coordinateAxes];
+            var modelMatrix = coordinateAxes.GetModelMatrix();
+            
+            if (modelLoc >= 0) 
+            {
+                GL.UniformMatrix4(modelLoc, false, ref modelMatrix);
+            }
+            
+            // 坐标轴使用简单的顶点颜色着色
+            int wireframeColorLoc = GL.GetUniformLocation(shaderProgram, "wireframeColor");
+            if (wireframeColorLoc >= 0) GL.Uniform3(wireframeColorLoc, 1.0f, 1.0f, 1.0f); // 白色线框
+            
+            // 绑定VAO并设置顶点属性
+            GL.BindVertexArray(renderData.VAO);
+            
+            // 设置顶点位置属性
+            int positionLoc = GL.GetAttribLocation(shaderProgram, "aPosition");
+            if (positionLoc >= 0)
+            {
+                GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+                GL.EnableVertexAttribArray(positionLoc);
+            }
+            
+            // 设置顶点颜色属性
+            int colorLoc = GL.GetAttribLocation(shaderProgram, "aColor");
+            if (colorLoc >= 0)
+            {
+                GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+                GL.EnableVertexAttribArray(colorLoc);
+            }
+            
+            // 坐标轴始终以线框模式渲染
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+            
+            // 绘制坐标轴
+            GL.DrawElements(PrimitiveType.Lines, coordinateAxes.IndexCount, DrawElementsType.UnsignedInt, 0);
+            
+            // 恢复多边形模式为填充模式
+            GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+        }
         #endregion
 
         #region 渲染方法
@@ -597,149 +774,20 @@ void main()
             }
 
             
-            // 渲染所有模型
+            // 渲染所有普通模型（不包括坐标轴）
             foreach (var model in Scene.Models)
             {
-                if (model.Visible)
+                if (model.Visible && !(model is CoordinateAxesModel))
                 {
-                    // 如果模型没有渲染数据，先创建
-                    if (!_modelRenderData.ContainsKey(model))
-                    {
-                        CreateModelBuffers(model);
-                    }
-                    
-                    // 检查是否成功创建了渲染数据
-                    if (!_modelRenderData.ContainsKey(model))
-                    {
-                        continue;
-                    }
-                    var renderData = _modelRenderData[model];
-                    var modelMatrix = model.GetModelMatrix();
-                    
-                    if (modelLoc >= 0) 
-                     {
-                         GL.UniformMatrix4(modelLoc, false, ref modelMatrix);
-                     }
-                    
-                    // 设置材质uniform变量
-                    if (_currentShadingMode != ShadingMode.Wireframe && _currentShadingMode != ShadingMode.Vertex && model.Material != null)
-                    {
-                        int ambientLoc = GL.GetUniformLocation(currentShaderProgram, "materialAmbient");
-                        int diffuseLoc = GL.GetUniformLocation(currentShaderProgram, "materialDiffuse");
-                        int specularLoc = GL.GetUniformLocation(currentShaderProgram, "materialSpecular");
-                        int shininessLoc = GL.GetUniformLocation(currentShaderProgram, "materialShininess");
-                        
-                        if (ambientLoc >= 0) GL.Uniform3(ambientLoc, model.Material.Ambient.X, model.Material.Ambient.Y, model.Material.Ambient.Z);
-                        if (diffuseLoc >= 0) GL.Uniform3(diffuseLoc, model.Material.Diffuse.X, model.Material.Diffuse.Y, model.Material.Diffuse.Z);
-                        if (specularLoc >= 0) GL.Uniform3(specularLoc, model.Material.Specular.X, model.Material.Specular.Y, model.Material.Specular.Z);
-                         if (shininessLoc >= 0) GL.Uniform1(shininessLoc, model.Material.Shininess);
-                    }
-                    else if (_currentShadingMode == ShadingMode.Wireframe)
-                     {
-                         int wireframeColorLoc = GL.GetUniformLocation(currentShaderProgram, "wireframeColor");
-                         if (wireframeColorLoc >= 0) GL.Uniform3(wireframeColorLoc, 1.0f, 1.0f, 1.0f); // 白色线框
-                     }
-                    else if (_currentShadingMode == ShadingMode.Texture)
-                    {
-                        // 绑定纹理
-                        GL.ActiveTexture(TextureUnit.Texture0);
-                        GL.BindTexture(TextureTarget.Texture2D, _defaultTexture);
-                        int textureLoc = GL.GetUniformLocation(currentShaderProgram, "uTexture");
-                         if (textureLoc >= 0) GL.Uniform1(textureLoc, 0);
-                     }
-                     
-                     // 绑定VAO并设置顶点属性
-                     GL.BindVertexArray(renderData.VAO);
-                    
-                    // 动态设置顶点属性指针
-                    int positionLoc = GL.GetAttribLocation(currentShaderProgram, "aPosition");
-                    if (positionLoc >= 0)
-                    {
-                        if (_currentShadingMode == ShadingMode.Texture)
-                        {
-                            GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
-                        }
-                        else
-                        {
-                            GL.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
-                        }
-                        GL.EnableVertexAttribArray(positionLoc);
-                    }
-                    
-                    // 根据着色模式设置不同的顶点属性
-                    if (_currentShadingMode == ShadingMode.Texture)
-                    {
-                        int texCoordLoc = GL.GetAttribLocation(currentShaderProgram, "aTexCoord");
-                        if (texCoordLoc >= 0)
-                        {
-                            GL.VertexAttribPointer(texCoordLoc, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
-                            GL.EnableVertexAttribArray(texCoordLoc);
-                        }
-                    }
-                    else if (_currentShadingMode == ShadingMode.Vertex)
-                    {
-                        int colorLoc = GL.GetAttribLocation(currentShaderProgram, "aColor");
-                        if (colorLoc >= 0)
-                        {
-                            GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
-                            GL.EnableVertexAttribArray(colorLoc);
-                        }
-                    }
-                    else if (_currentShadingMode != ShadingMode.Wireframe)
-                    {
-                        // 对于其他着色模式，我们仍然使用颜色数据，因为立方体顶点数据中没有法线
-                        int colorLoc = GL.GetAttribLocation(currentShaderProgram, "aColor");
-                        if (colorLoc >= 0)
-                        {
-                            GL.VertexAttribPointer(colorLoc, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
-                            GL.EnableVertexAttribArray(colorLoc);
-                        }
-                    }
-                    
-                    // 设置多边形模式
-                    bool isWireframe = (_currentRenderMode == RenderMode.Line) || (_currentShadingMode == ShadingMode.Wireframe);
-                    
-                    // 坐标轴特殊处理：始终以线框模式渲染
-                    bool isCoordinateAxes = model is CoordinateAxesModel;
-                    if (isCoordinateAxes || isWireframe)
-                    {
-                        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-                    }
-                    else
-                    {
-                        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-                    }
-                    
-                    // 绘制模型
-                    if (isCoordinateAxes)
-                    {
-                        // 坐标轴始终以线框模式绘制
-                        GL.DrawElements(PrimitiveType.Lines, model.IndexCount, DrawElementsType.UnsignedInt, 0);
-                    }
-                    else
-                    {
-                        switch (_currentRenderMode)
-                        {
-                            case RenderMode.Point:
-                                GL.DrawElements(PrimitiveType.Points, model.IndexCount, DrawElementsType.UnsignedInt, 0);
-                                break;
-                            case RenderMode.Line:
-                            case RenderMode.Fill:
-                            default:
-                                GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
-                                break;
-                        }
-                    }
-                    
-                    // 重置多边形模式为填充模式，避免影响后续模型
-                    if (isCoordinateAxes && !isWireframe)
-                    {
-                        GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-                    }
+                    RenderModel(model, currentShaderProgram, modelLoc);
                 }
             }
             
-            // 坐标轴现在作为普通模型处理，不需要独立渲染逻辑
+            // 独立渲染坐标轴（如果需要显示）
+            if (Scene.ShowCoordinateAxes && Scene.CoordinateAxes != null)
+            {
+                RenderCoordinateAxes(Scene.CoordinateAxes, currentShaderProgram, modelLoc);
+            }
             
             GL.BindVertexArray(0);
         }
