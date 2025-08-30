@@ -50,6 +50,8 @@ namespace Avalonia3DControl
         private float _rotationY = 0.0f;
         private float _zoom = 1.0f;
         private float _targetZoom = 1.0f; // 目标缩放值，用于平滑缩放
+        private float _orthographicSize = 5.0f; // 正交投影的视野大小
+        private float _targetOrthographicSize = 5.0f; // 目标正交投影大小，用于平滑缩放
         private Vector2 _lastMousePosition;
         private bool _isMousePressed = false;
         private bool _isRightMousePressed = false;
@@ -180,28 +182,61 @@ namespace Avalonia3DControl
 
         private void UpdateCamera(float aspectRatio)
         {
-            // 平滑插值到目标缩放值
-            var zoomDifference = _targetZoom - _zoom;
-            if (Math.Abs(zoomDifference) > 0.001f) // 避免无限小的变化
-            {
-                _zoom += zoomDifference * ZOOM_SMOOTHING;
-                
-                // 如果非常接近目标值，直接设置为目标值
-                if (Math.Abs(zoomDifference) < 0.01f)
-                {
-                    _zoom = _targetZoom;
-                }
-            }
+            bool needsContinuousRendering = false;
             
-            // 计算相机位置
-            var cameraPosition = new Vector3(
-                (float)(Math.Sin(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom),
-                (float)(Math.Sin(_rotationX) * CAMERA_DISTANCE * _zoom),
-                (float)(Math.Cos(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom)
-            ) + _cameraOffset;
+            if (Scene.Camera.Mode == ProjectionMode.Perspective)
+            {
+                // 透视投影模式：平滑插值到目标缩放值
+                var zoomDifference = _targetZoom - _zoom;
+                if (Math.Abs(zoomDifference) > 0.001f) // 避免无限小的变化
+                {
+                    _zoom += zoomDifference * ZOOM_SMOOTHING;
+                    
+                    // 如果非常接近目标值，直接设置为目标值
+                    if (Math.Abs(zoomDifference) < 0.01f)
+                    {
+                        _zoom = _targetZoom;
+                    }
+                    else
+                    {
+                        needsContinuousRendering = true;
+                    }
+                }
+                
+                // 计算相机位置
+                var cameraPosition = new Vector3(
+                    (float)(Math.Sin(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom),
+                    (float)(Math.Sin(_rotationX) * CAMERA_DISTANCE * _zoom),
+                    (float)(Math.Cos(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom)
+                ) + _cameraOffset;
 
-            // 更新Scene.Camera的参数
-            Scene.Camera.Position = cameraPosition;
+                Scene.Camera.Position = cameraPosition;
+            }
+            else
+            {
+                // 正交投影模式：平滑插值到目标正交投影大小
+                var orthographicDifference = _targetOrthographicSize - _orthographicSize;
+                if (Math.Abs(orthographicDifference) > 0.001f)
+                {
+                    _orthographicSize += orthographicDifference * ZOOM_SMOOTHING;
+                    
+                    // 如果非常接近目标值，直接设置为目标值
+                    if (Math.Abs(orthographicDifference) < 0.01f)
+                    {
+                        _orthographicSize = _targetOrthographicSize;
+                    }
+                    else
+                    {
+                        needsContinuousRendering = true;
+                    }
+                }
+                
+                // 正交投影模式下相机位置保持固定
+                Scene.Camera.Position = new Vector3(0.0f, 0.0f, 5.0f);
+                Scene.Camera.OrthographicSize = _orthographicSize;
+            }
+
+            // 更新Scene.Camera的通用参数
             Scene.Camera.Target = _cameraOffset;
             Scene.Camera.Up = Vector3.UnitY;
             Scene.Camera.AspectRatio = aspectRatio;
@@ -210,7 +245,7 @@ namespace Avalonia3DControl
             Scene.Camera.FarPlane = 100.0f;
             
             // 如果缩放值还在变化，继续请求渲染
-            if (Math.Abs(_targetZoom - _zoom) > 0.001f)
+            if (needsContinuousRendering)
             {
                 RequestNextFrameRendering();
             }
@@ -305,14 +340,22 @@ namespace Avalonia3DControl
             
             var delta = (float)e.Delta.Y;
             
-            // 使用对数缩放获得更平滑的体验
-            // 将缩放值转换为对数空间进行计算
-            var logZoom = (float)Math.Log(_targetZoom);
-            logZoom += delta * ZOOM_SENSITIVITY;
-            
-            // 转换回线性空间并应用限制
-            _targetZoom = (float)Math.Exp(logZoom);
-            _targetZoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, _targetZoom));
+            if (Scene.Camera.Mode == ProjectionMode.Perspective)
+            {
+                // 透视投影模式：使用对数缩放获得更平滑的体验
+                var logZoom = (float)Math.Log(_targetZoom);
+                logZoom += delta * ZOOM_SENSITIVITY;
+                
+                // 转换回线性空间并应用限制
+                _targetZoom = (float)Math.Exp(logZoom);
+                _targetZoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, _targetZoom));
+            }
+            else
+            {
+                // 正交投影模式：直接调整正交投影大小
+                _targetOrthographicSize -= delta * ZOOM_SENSITIVITY * 2.0f; // 调整缩放敏感度
+                _targetOrthographicSize = Math.Max(0.5f, Math.Min(20.0f, _targetOrthographicSize)); // 限制范围
+            }
             
             RequestNextFrameRendering();
             e.Handled = true;
@@ -365,6 +408,8 @@ namespace Avalonia3DControl
             _rotationY = 0.0f;
             _zoom = 1.0f;
             _targetZoom = 1.0f;
+            _orthographicSize = 5.0f;
+            _targetOrthographicSize = 5.0f;
             _cameraOffset = Vector3.Zero;
             RequestNextFrameRendering();
         }
