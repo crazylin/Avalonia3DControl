@@ -20,7 +20,6 @@ namespace Avalonia3DControl.Core
         public List<Model3D> Models { get; set; }
         public Vector3 BackgroundColor { get; set; }
         
-        private Model3D? _currentModel;
         private bool _coordinateAxesVisible = false;
         
         // 独立的坐标轴模型

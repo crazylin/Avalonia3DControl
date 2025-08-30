@@ -56,7 +56,7 @@ namespace Avalonia3DControl
         private Vector3 _cameraOffset = Vector3.Zero;
 
         // 渲染器
-        private OpenGLRenderer _renderer;
+        private OpenGLRenderer? _renderer;
         private ShadingMode _currentShadingMode = ShadingMode.Vertex;
         private RenderMode _currentRenderMode = RenderMode.Fill;
         private bool _isOpenGLInitialized = false;
@@ -66,7 +66,7 @@ namespace Avalonia3DControl
         /// <summary>
         /// 3D场景管理器
         /// </summary>
-        public Scene3D Scene { get; private set; }
+        public Scene3D Scene { get; private set; } = new Scene3D();
         #endregion
         
         #region 构造函数
@@ -149,7 +149,7 @@ namespace Avalonia3DControl
 
                 // 渲染场景（包含坐标轴）
                 var coordinateAxes = Scene.ShowCoordinateAxes ? Scene.CoordinateAxes : null;
-                _renderer.RenderSceneWithAxes(Scene.Camera, Scene.Models, Scene.Lights, Scene.BackgroundColor, _currentShadingMode, _currentRenderMode, coordinateAxes, Scene.MiniAxes);
+                _renderer?.RenderSceneWithAxes(Scene.Camera, Scene.Models, Scene.Lights, Scene.BackgroundColor, _currentShadingMode, _currentRenderMode, coordinateAxes, Scene.MiniAxes);
             }
             catch (Exception ex)
             {

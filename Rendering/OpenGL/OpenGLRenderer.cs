@@ -162,7 +162,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// <summary>
         /// 渲染场景（包含坐标轴）
         /// </summary>
-        public void RenderSceneWithAxes(Camera camera, List<Model3D> models, List<Light> lights, Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode, Model3D coordinateAxes = null, MiniAxes miniAxes = null)
+        public void RenderSceneWithAxes(Camera camera, List<Model3D> models, List<Light> lights, Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode, Model3D? coordinateAxes = null, MiniAxes? miniAxes = null)
         {
             if (!_isInitialized) 
             {
@@ -268,6 +268,17 @@ namespace Avalonia3DControl.Rendering.OpenGL
             }
             
             // 法向量和纹理坐标属性已移除，不再绑定
+            
+            // 绑定默认纹理到纹理单元0（避免OpenGL警告）
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _defaultTexture);
+            
+            // 设置纹理采样器uniform
+            int textureLocation = GL.GetUniformLocation(shaderProgram, "texture0");
+            if (textureLocation != -1)
+            {
+                GL.Uniform1(textureLocation, 0); // 绑定到纹理单元0
+            }
             
             // 为纹理着色器设置hasTexture uniform
             int hasTextureLocation = GL.GetUniformLocation(shaderProgram, "hasTexture");
