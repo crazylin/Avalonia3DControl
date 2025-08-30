@@ -241,10 +241,24 @@ namespace Avalonia3DControl.UI
             var scene = _openGLControl.Scene;
             if (scene != null)
             {
+                // 应用材质到普通模型
                 foreach (var model in scene.Models)
                 {
                     model.Material = material;
                 }
+                
+                // 对坐标轴只更新透明度，保持其原有的金属材质特性
+                if (scene.CoordinateAxes != null && scene.CoordinateAxes.Material != null)
+                {
+                    scene.CoordinateAxes.Material.Alpha = material.Alpha;
+                }
+                
+                // 对迷你坐标轴只更新透明度
+                if (scene.MiniAxes?.AxesModel != null && scene.MiniAxes.AxesModel.Material != null)
+                {
+                    scene.MiniAxes.AxesModel.Material.Alpha = material.Alpha;
+                }
+                
                 // 强制重绘以显示材质变化
                 _openGLControl.RequestNextFrameRendering();
             }
@@ -339,6 +353,7 @@ namespace Avalonia3DControl.UI
             var scene = _openGLControl.Scene;
             if (scene != null)
             {
+                // 应用透明度到普通模型
                 foreach (var model in scene.Models)
                 {
                     if (model.Material != null)
@@ -346,6 +361,19 @@ namespace Avalonia3DControl.UI
                         model.Material.Alpha = alpha;
                     }
                 }
+                
+                // 应用透明度到坐标轴
+                if (scene.CoordinateAxes != null && scene.CoordinateAxes.Material != null)
+                {
+                    scene.CoordinateAxes.Material.Alpha = alpha;
+                }
+                
+                // 应用透明度到迷你坐标轴
+                if (scene.MiniAxes?.AxesModel != null && scene.MiniAxes.AxesModel.Material != null)
+                {
+                    scene.MiniAxes.AxesModel.Material.Alpha = alpha;
+                }
+                
                 // 强制重绘以显示透明度变化
                 _openGLControl.RequestNextFrameRendering();
             }

@@ -212,16 +212,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
             // 设置光照
             // 光照已移除，不再需要设置
             
-            // 渲染所有模型
-            foreach (var model in models)
-            {
-                if (model.Visible)
-                {
-                    RenderModel(model, shaderProgram);
-                }
-            }
-            
-            // 渲染坐标轴（如果存在且可见）
+            // 先渲染坐标轴（如果存在且可见），确保透明模型能正确显示坐标轴
             if (coordinateAxes != null && coordinateAxes.Visible)
             {
                 // 坐标轴始终使用顶点着色器和填充模式渲染，不受全局着色模式和渲染模式影响
@@ -240,6 +231,15 @@ namespace Avalonia3DControl.Rendering.OpenGL
                     // 恢复原始着色器和渲染模式
                     GL.UseProgram(shaderProgram);
                     SetRenderMode(renderMode);
+                }
+            }
+            
+            // 然后渲染所有模型（透明模型会正确混合坐标轴）
+            foreach (var model in models)
+            {
+                if (model.Visible)
+                {
+                    RenderModel(model, shaderProgram);
                 }
             }
             
@@ -409,7 +409,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
             
             // 绑定顶点缓冲区
             GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
-            GL.BufferData(BufferTarget.ArrayBuffer, model.Vertices.Length * sizeof(float), model.Vertices, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, model.Vertices.Length * sizeof(float), model.Vertices, BufferUsageHint.DynamicDraw);
             
             // 绑定索引缓冲区
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
@@ -418,6 +418,42 @@ namespace Avalonia3DControl.Rendering.OpenGL
             GL.BindVertexArray(0);
             
             _modelRenderData[model] = renderData;
+        }
+        
+        /// <summary>
+        /// 更新模型的顶点缓冲区数据
+        /// </summary>
+        /// <param name="model">模型</param>
+        public void UpdateModelVertexBuffer(Model3D model)
+        {
+            if (!_isInitialized || model?.Vertices == null)
+            {
+                return; // 如果渲染器未初始化或模型数据无效，跳过更新
+            }
+            
+            if (!_modelRenderData.TryGetValue(model, out var renderData))
+            {
+                return; // 如果模型没有渲染数据，跳过更新
+            }
+            
+            try
+            {
+                // 绑定并更新顶点缓冲区
+                GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
+                GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, model.Vertices.Length * sizeof(float), model.Vertices);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                
+                // 检查OpenGL错误
+                var error = GL.GetError();
+                if (error != ErrorCode.NoError)
+                {
+                    Console.WriteLine($"更新顶点缓冲区时发生OpenGL错误: {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"更新顶点缓冲区时发生异常: {ex.Message}");
+            }
         }
         #endregion
 
