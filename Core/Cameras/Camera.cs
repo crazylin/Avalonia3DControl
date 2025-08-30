@@ -12,6 +12,17 @@ namespace Avalonia3DControl.Core.Cameras
     }
 
     /// <summary>
+    /// 视图锁定模式枚举
+    /// </summary>
+    public enum ViewLockMode
+    {
+        None,   // 自由视角
+        XY,     // XY平面锁定（俯视图）
+        YZ,     // YZ平面锁定（右视图）
+        XZ      // XZ平面锁定（前视图）
+    }
+
+    /// <summary>
     /// 相机类
     /// </summary>
     public class Camera
@@ -24,6 +35,7 @@ namespace Avalonia3DControl.Core.Cameras
         public float NearPlane { get; set; }
         public float FarPlane { get; set; }
         public ProjectionMode Mode { get; set; }
+        public ViewLockMode ViewLock { get; set; }
         
         // 2D模式下的正交投影参数
         public float OrthographicSize { get; set; }
@@ -38,6 +50,7 @@ namespace Avalonia3DControl.Core.Cameras
             NearPlane = 0.1f;
             FarPlane = 100.0f;
             Mode = ProjectionMode.Perspective;
+            ViewLock = ViewLockMode.None;
             OrthographicSize = 5.0f; // 2D模式下的视野大小
         }
 
@@ -81,6 +94,45 @@ namespace Avalonia3DControl.Core.Cameras
             // 恢复3D相机位置
             Position = new Vector3(0.0f, 0.0f, 3.0f);
             Target = Vector3.Zero;
+        }
+
+        /// <summary>
+        /// 设置视图锁定模式
+        /// </summary>
+        /// <param name="lockMode">视图锁定模式</param>
+        public void SetViewLock(ViewLockMode lockMode)
+        {
+            ViewLock = lockMode;
+            
+            // 根据锁定模式设置相机位置和方向
+            switch (lockMode)
+            {
+                case ViewLockMode.XY: // 俯视图 - 从上往下看XY平面
+                    Position = new Vector3(0.0f, 5.0f, 0.0f);
+                    Target = Vector3.Zero;
+                    Up = new Vector3(0.0f, 0.0f, -1.0f); // Z轴向下作为上方向
+                    break;
+                    
+                case ViewLockMode.YZ: // 右视图 - 从右侧看YZ平面
+                    Position = new Vector3(5.0f, 0.0f, 0.0f);
+                    Target = Vector3.Zero;
+                    Up = Vector3.UnitY; // Y轴向上
+                    break;
+                    
+                case ViewLockMode.XZ: // 前视图 - 从前方看XZ平面
+                    Position = new Vector3(0.0f, 0.0f, 5.0f);
+                    Target = Vector3.Zero;
+                    Up = Vector3.UnitY; // Y轴向上
+                    break;
+                    
+                case ViewLockMode.None:
+                default:
+                    // 恢复默认3D视角
+                    Position = new Vector3(0.0f, 0.0f, 3.0f);
+                    Target = Vector3.Zero;
+                    Up = Vector3.UnitY;
+                    break;
+            }
         }
     }
 }

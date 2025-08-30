@@ -138,6 +138,33 @@
                                      Foreground="#4C566A"/>
                     </StackPanel>
                     
+                    <!-- 视图锁定控制 -->
+                    <TextBlock Text="🔒 视图锁定" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <RadioButton x:Name="NoViewLockRadio" Content="自由视角" 
+                                     GroupName="ViewLockMode" 
+                                     IsChecked="True" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="XYViewLockRadio" Content="XY平面 (俯视)" 
+                                     GroupName="ViewLockMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="YZViewLockRadio" Content="YZ平面 (右视)" 
+                                     GroupName="ViewLockMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="XZViewLockRadio" Content="XZ平面 (前视)" 
+                                     GroupName="ViewLockMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                    </StackPanel>
+                    
                     <!-- 模型显示控制 -->
                     <TextBlock Text="👁️ 模型显示" 
                                FontSize="14" 

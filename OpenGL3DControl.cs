@@ -37,8 +37,8 @@ namespace Avalonia3DControl
         #region 常量定义
         private const float ROTATION_SENSITIVITY = 0.01f;
         private const float TRANSLATION_SENSITIVITY = 0.005f;
-        private const float ZOOM_SENSITIVITY = 0.1f;
-        private const float ZOOM_SMOOTHING = 0.15f; // 缩放平滑系数
+        private const float ZOOM_SENSITIVITY = 0.3f; // 增加缩放敏感度
+        private const float ZOOM_SMOOTHING = 0.25f; // 增加缩放平滑系数
         private const float MIN_ZOOM = 0.2f;
         private const float MAX_ZOOM = 10.0f;
         private const float CAMERA_DISTANCE = 3.0f;
@@ -184,61 +184,121 @@ namespace Avalonia3DControl
         {
             bool needsContinuousRendering = false;
             
-            if (Scene.Camera.Mode == ProjectionMode.Perspective)
+            // 检查是否处于视图锁定模式
+            if (Scene.Camera.ViewLock != ViewLockMode.None)
             {
-                // 透视投影模式：平滑插值到目标缩放值
-                var zoomDifference = _targetZoom - _zoom;
-                if (Math.Abs(zoomDifference) > 0.001f) // 避免无限小的变化
+                // 视图锁定模式：只处理缩放，不改变相机位置和方向
+                if (Scene.Camera.Mode == ProjectionMode.Perspective)
                 {
-                    _zoom += zoomDifference * ZOOM_SMOOTHING;
+                    // 透视投影模式：平滑插值到目标缩放值
+                    var zoomDifference = _targetZoom - _zoom;
+                    if (Math.Abs(zoomDifference) > 0.001f)
+                    {
+                        _zoom += zoomDifference * ZOOM_SMOOTHING;
+                        
+                        if (Math.Abs(zoomDifference) < 0.01f)
+                        {
+                            _zoom = _targetZoom;
+                        }
+                        else
+                        {
+                            needsContinuousRendering = true;
+                        }
+                    }
                     
-                    // 如果非常接近目标值，直接设置为目标值
-                    if (Math.Abs(zoomDifference) < 0.01f)
-                    {
-                        _zoom = _targetZoom;
-                    }
-                    else
-                    {
-                        needsContinuousRendering = true;
-                    }
+                    // 在锁定视图中应用缩放到相机距离
+                    var basePosition = Scene.Camera.Position;
+                    var direction = Vector3.Normalize(basePosition - Scene.Camera.Target);
+                    Scene.Camera.Position = Scene.Camera.Target + direction * CAMERA_DISTANCE * _zoom;
                 }
-                
-                // 计算相机位置
-                var cameraPosition = new Vector3(
-                    (float)(Math.Sin(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom),
-                    (float)(Math.Sin(_rotationX) * CAMERA_DISTANCE * _zoom),
-                    (float)(Math.Cos(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom)
-                ) + _cameraOffset;
-
-                Scene.Camera.Position = cameraPosition;
+                else
+                {
+                    // 正交投影模式：平滑插值到目标正交投影大小
+                    var orthographicDifference = _targetOrthographicSize - _orthographicSize;
+                    if (Math.Abs(orthographicDifference) > 0.001f)
+                    {
+                        _orthographicSize += orthographicDifference * ZOOM_SMOOTHING;
+                        
+                        if (Math.Abs(orthographicDifference) < 0.01f)
+                        {
+                            _orthographicSize = _targetOrthographicSize;
+                        }
+                        else
+                        {
+                            needsContinuousRendering = true;
+                        }
+                    }
+                    
+                    Scene.Camera.OrthographicSize = _orthographicSize;
+                }
             }
             else
             {
-                // 正交投影模式：平滑插值到目标正交投影大小
-                var orthographicDifference = _targetOrthographicSize - _orthographicSize;
-                if (Math.Abs(orthographicDifference) > 0.001f)
+                // 自由视角模式：原有的相机控制逻辑
+                if (Scene.Camera.Mode == ProjectionMode.Perspective)
                 {
-                    _orthographicSize += orthographicDifference * ZOOM_SMOOTHING;
+                    // 透视投影模式：平滑插值到目标缩放值
+                    var zoomDifference = _targetZoom - _zoom;
+                    if (Math.Abs(zoomDifference) > 0.001f) // 避免无限小的变化
+                    {
+                        _zoom += zoomDifference * ZOOM_SMOOTHING;
+                        
+                        // 如果非常接近目标值，直接设置为目标值
+                        if (Math.Abs(zoomDifference) < 0.01f)
+                        {
+                            _zoom = _targetZoom;
+                        }
+                        else
+                        {
+                            needsContinuousRendering = true;
+                        }
+                    }
                     
-                    // 如果非常接近目标值，直接设置为目标值
-                    if (Math.Abs(orthographicDifference) < 0.01f)
+                    // 计算相机位置
+                    var cameraPosition = new Vector3(
+                        (float)(Math.Sin(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom),
+                        (float)(Math.Sin(_rotationX) * CAMERA_DISTANCE * _zoom),
+                        (float)(Math.Cos(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE * _zoom)
+                    ) + _cameraOffset;
+
+                    Scene.Camera.Position = cameraPosition;
+                }
+                else
+                {
+                    // 正交投影模式：平滑插值到目标正交投影大小
+                    var orthographicDifference = _targetOrthographicSize - _orthographicSize;
+                    if (Math.Abs(orthographicDifference) > 0.001f)
                     {
-                        _orthographicSize = _targetOrthographicSize;
+                        _orthographicSize += orthographicDifference * ZOOM_SMOOTHING;
+                        
+                        // 如果非常接近目标值，直接设置为目标值
+                        if (Math.Abs(orthographicDifference) < 0.01f)
+                        {
+                            _orthographicSize = _targetOrthographicSize;
+                        }
+                        else
+                        {
+                            needsContinuousRendering = true;
+                        }
                     }
-                    else
-                    {
-                        needsContinuousRendering = true;
-                    }
+                    
+                    // 正交投影模式下也支持旋转，但距离固定
+                    var cameraPosition = new Vector3(
+                        (float)(Math.Sin(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE),
+                        (float)(Math.Sin(_rotationX) * CAMERA_DISTANCE),
+                        (float)(Math.Cos(_rotationY) * Math.Cos(_rotationX) * CAMERA_DISTANCE)
+                    ) + _cameraOffset;
+                    
+                    Scene.Camera.Position = cameraPosition;
+                    Scene.Camera.OrthographicSize = _orthographicSize;
                 }
                 
-                // 正交投影模式下相机位置保持固定
-                Scene.Camera.Position = new Vector3(0.0f, 0.0f, 5.0f);
-                Scene.Camera.OrthographicSize = _orthographicSize;
+                // 更新Scene.Camera的通用参数
+                Scene.Camera.Target = _cameraOffset;
+                Scene.Camera.Up = Vector3.UnitY;
             }
 
-            // 更新Scene.Camera的通用参数
-            Scene.Camera.Target = _cameraOffset;
-            Scene.Camera.Up = Vector3.UnitY;
+            // 更新通用相机参数
             Scene.Camera.AspectRatio = aspectRatio;
             Scene.Camera.FieldOfView = MathHelper.DegreesToRadians(45.0f);
             Scene.Camera.NearPlane = 0.1f;
@@ -412,6 +472,25 @@ namespace Avalonia3DControl
             _targetOrthographicSize = 5.0f;
             _cameraOffset = Vector3.Zero;
             RequestNextFrameRendering();
+        }
+
+        /// <summary>
+        /// 设置视图锁定模式
+        /// </summary>
+        /// <param name="lockMode">视图锁定模式</param>
+        public void SetViewLock(ViewLockMode lockMode)
+        {
+            Scene.Camera.SetViewLock(lockMode);
+            RequestNextFrameRendering();
+        }
+
+        /// <summary>
+        /// 获取当前视图锁定模式
+        /// </summary>
+        /// <returns>当前视图锁定模式</returns>
+        public ViewLockMode GetViewLockMode()
+        {
+            return Scene.Camera.ViewLock;
         }
 
         public void SetCoordinateAxesVisible(bool show)

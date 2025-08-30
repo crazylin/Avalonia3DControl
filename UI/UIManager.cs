@@ -5,6 +5,7 @@ using System;
 using Avalonia3DControl.Materials;
 using Avalonia3DControl.Core;
 using Avalonia3DControl.Core.Models;
+using Avalonia3DControl.Core.Cameras;
 using Avalonia3DControl.Rendering;
 
 namespace Avalonia3DControl.UI
@@ -31,6 +32,7 @@ namespace Avalonia3DControl.UI
             SetupShadingModeHandlers();
             SetupRenderModeHandlers();
             SetupProjectionModeHandlers();
+            SetupViewLockHandlers();
             SetupMaterialHandlers();
             SetupModelSelectionHandlers();
             SetupCoordinateAxesHandler();
@@ -111,6 +113,53 @@ namespace Avalonia3DControl.UI
                 {
                     if (orthographic2DRadio.IsChecked == true)
                         _openGLControl.SwitchToOrthographic();
+                };
+            }
+        }
+
+        /// <summary>
+        /// 设置视图锁定事件处理器
+        /// </summary>
+        private void SetupViewLockHandlers()
+        {
+            var noViewLockRadio = _window.FindControl<RadioButton>("NoViewLockRadio");
+            var xyViewLockRadio = _window.FindControl<RadioButton>("XYViewLockRadio");
+            var yzViewLockRadio = _window.FindControl<RadioButton>("YZViewLockRadio");
+            var xzViewLockRadio = _window.FindControl<RadioButton>("XZViewLockRadio");
+
+            if (noViewLockRadio != null)
+            {
+                noViewLockRadio.IsCheckedChanged += (s, e) =>
+                {
+                    if (noViewLockRadio.IsChecked == true)
+                        _openGLControl.SetViewLock(ViewLockMode.None);
+                };
+            }
+
+            if (xyViewLockRadio != null)
+            {
+                xyViewLockRadio.IsCheckedChanged += (s, e) =>
+                {
+                    if (xyViewLockRadio.IsChecked == true)
+                        _openGLControl.SetViewLock(ViewLockMode.XY);
+                };
+            }
+
+            if (yzViewLockRadio != null)
+            {
+                yzViewLockRadio.IsCheckedChanged += (s, e) =>
+                {
+                    if (yzViewLockRadio.IsChecked == true)
+                        _openGLControl.SetViewLock(ViewLockMode.YZ);
+                };
+            }
+
+            if (xzViewLockRadio != null)
+            {
+                xzViewLockRadio.IsCheckedChanged += (s, e) =>
+                {
+                    if (xzViewLockRadio.IsChecked == true)
+                        _openGLControl.SetViewLock(ViewLockMode.XZ);
                 };
             }
         }
