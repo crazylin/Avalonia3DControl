@@ -34,10 +34,28 @@ namespace Avalonia3DControl.Geometry.Factories
                     model.Material = Material.CreateMetal(new Vector3(0.2f, 0.8f, 0.2f)); // 绿色金属
                     break;
                     
+                case "cylinder":
+                    model = CreateCylinder();
+                    model.Name = "Cylinder";
+                    model.Material = Material.CreateMetal(new Vector3(0.7f, 0.5f, 0.2f)); // 金色金属
+                    break;
+                    
                 case "wave":
                     model = CreateWave();
                     model.Name = "Wave";
                     model.Material = Material.CreateGlass(new Vector3(0.2f, 0.6f, 0.9f)); // 蓝色玻璃
+                    break;
+                    
+                case "coswave":
+                    model = CreateCosWave();
+                    model.Name = "CosWave";
+                    model.Material = Material.CreateGlass(new Vector3(0.9f, 0.4f, 0.6f)); // 粉色玻璃
+                    break;
+                    
+                case "ripple":
+                    model = CreateRipple();
+                    model.Name = "Ripple";
+                    model.Material = Material.CreateGlass(new Vector3(0.4f, 0.8f, 0.9f)); // 浅蓝色玻璃
                     break;
                     
                 case "waterdrop":
@@ -45,6 +63,25 @@ namespace Avalonia3DControl.Geometry.Factories
                     model.Name = "WaterDrop";
                     model.Scale = new Vector3(0.8f, 0.8f, 0.8f);
                     model.Material = Material.CreateGlass(new Vector3(0.2f, 0.9f, 0.8f)); // 青色玻璃
+                    break;
+                    
+                case "spiral":
+                    model = CreateSpiral();
+                    model.Name = "Spiral";
+                    model.Material = Material.CreateMetal(new Vector3(0.6f, 0.3f, 0.8f)); // 紫色金属
+                    break;
+                    
+                case "torus":
+                    model = CreateTorus();
+                    model.Name = "Torus";
+                    model.Material = Material.CreatePlastic(new Vector3(0.9f, 0.6f, 0.2f)); // 橙色塑料
+                    break;
+                    
+                case "cantileverbeam":
+                case "CantileverBeam":
+                    model = CreateCantileverBeam();
+                    model.Name = "CantileverBeam";
+                    model.Material = Material.CreateMetal(new Vector3(0.7f, 0.7f, 0.8f)); // 银色金属
                     break;
                     
                 default:
@@ -555,6 +592,326 @@ namespace Avalonia3DControl.Geometry.Factories
             }
             
             vertexIndex += 6;
+        }
+
+        public static Model3D CreateCylinder(float radius = 1.0f, float height = 2.0f, int segments = 32)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            // 生成圆柱体顶点
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = 2.0f * MathF.PI * i / segments;
+                float x = radius * MathF.Cos(angle);
+                float z = radius * MathF.Sin(angle);
+
+                // 顶部顶点
+                vertices.Add(x);
+                vertices.Add(height / 2);
+                vertices.Add(z);
+                vertices.Add(0.8f); vertices.Add(0.6f); vertices.Add(0.2f); // 金色
+
+                // 底部顶点
+                vertices.Add(x);
+                vertices.Add(-height / 2);
+                vertices.Add(z);
+                vertices.Add(0.6f); vertices.Add(0.4f); vertices.Add(0.1f); // 深金色
+            }
+
+            // 中心顶点
+            vertices.Add(0); vertices.Add(height / 2); vertices.Add(0);
+            vertices.Add(1.0f); vertices.Add(0.8f); vertices.Add(0.4f); // 顶部中心
+            vertices.Add(0); vertices.Add(-height / 2); vertices.Add(0);
+            vertices.Add(0.4f); vertices.Add(0.3f); vertices.Add(0.1f); // 底部中心
+
+            uint centerTop = (uint)(segments + 1) * 2;
+            uint centerBottom = centerTop + 1;
+
+            // 生成索引
+            for (int i = 0; i < segments; i++)
+            {
+                uint topCurrent = (uint)(i * 2);
+                uint topNext = (uint)((i + 1) * 2);
+                uint bottomCurrent = topCurrent + 1;
+                uint bottomNext = topNext + 1;
+
+                // 侧面
+                indices.Add(topCurrent); indices.Add(bottomCurrent); indices.Add(topNext);
+                indices.Add(topNext); indices.Add(bottomCurrent); indices.Add(bottomNext);
+
+                // 顶面
+                indices.Add(centerTop); indices.Add(topCurrent); indices.Add(topNext);
+
+                // 底面
+                indices.Add(centerBottom); indices.Add(bottomNext); indices.Add(bottomCurrent);
+            }
+
+            return new Model3D
+            {
+                Name = "Cylinder",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = vertices.Count / 6,
+                IndexCount = indices.Count
+            };
+        }
+
+        public static Model3D CreateCosWave(float width = 4.0f, float height = 1.0f, int segments = 128)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            for (int i = 0; i <= segments; i++)
+            {
+                for (int j = 0; j <= segments; j++)
+                {
+                    float x = (i / (float)segments - 0.5f) * width;
+                    float z = (j / (float)segments - 0.5f) * width;
+                    float y = height * MathF.Cos(x * 2.0f) * MathF.Cos(z * 2.0f);
+
+                    vertices.Add(x); vertices.Add(y); vertices.Add(z);
+                    
+                    float normalizedY = (y + height) / (2 * height);
+                    vertices.Add(1.0f - normalizedY); vertices.Add(0.4f + normalizedY * 0.4f); vertices.Add(0.6f + normalizedY * 0.4f);
+                }
+            }
+
+            for (int i = 0; i < segments; i++)
+            {
+                for (int j = 0; j < segments; j++)
+                {
+                    uint topLeft = (uint)(i * (segments + 1) + j);
+                    uint topRight = topLeft + 1;
+                    uint bottomLeft = (uint)((i + 1) * (segments + 1) + j);
+                    uint bottomRight = bottomLeft + 1;
+
+                    indices.Add(topLeft); indices.Add(bottomLeft); indices.Add(topRight);
+                    indices.Add(topRight); indices.Add(bottomLeft); indices.Add(bottomRight);
+                }
+            }
+
+            return new Model3D
+            {
+                Name = "CosWave",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = vertices.Count / 6,
+                IndexCount = indices.Count
+            };
+        }
+
+        public static Model3D CreateRipple(float radius = 2.0f, float height = 0.5f, int segments = 64)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            for (int i = 0; i <= segments; i++)
+            {
+                for (int j = 0; j <= segments; j++)
+                {
+                    float x = (i / (float)segments - 0.5f) * radius * 2;
+                    float z = (j / (float)segments - 0.5f) * radius * 2;
+                    float distance = MathF.Sqrt(x * x + z * z);
+                    float y = height * MathF.Sin(distance * 4.0f) * MathF.Exp(-distance * 0.5f);
+
+                    vertices.Add(x); vertices.Add(y); vertices.Add(z);
+                    
+                    float normalizedDist = distance / radius;
+                    vertices.Add(0.4f + normalizedDist * 0.4f); vertices.Add(0.8f - normalizedDist * 0.3f); vertices.Add(0.9f);
+                }
+            }
+
+            for (int i = 0; i < segments; i++)
+            {
+                for (int j = 0; j < segments; j++)
+                {
+                    uint topLeft = (uint)(i * (segments + 1) + j);
+                    uint topRight = topLeft + 1;
+                    uint bottomLeft = (uint)((i + 1) * (segments + 1) + j);
+                    uint bottomRight = bottomLeft + 1;
+
+                    indices.Add(topLeft); indices.Add(bottomLeft); indices.Add(topRight);
+                    indices.Add(topRight); indices.Add(bottomLeft); indices.Add(bottomRight);
+                }
+            }
+
+            return new Model3D
+            {
+                Name = "Ripple",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = vertices.Count / 6,
+                IndexCount = indices.Count
+            };
+        }
+
+        public static Model3D CreateSpiral(float radius = 1.0f, float height = 3.0f, int segments = 128)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            for (int i = 0; i <= segments; i++)
+            {
+                float t = i / (float)segments;
+                float angle = t * 6.0f * MathF.PI; // 3圈螺旋
+                float x = radius * t * MathF.Cos(angle);
+                float z = radius * t * MathF.Sin(angle);
+                float y = (t - 0.5f) * height;
+
+                vertices.Add(x); vertices.Add(y); vertices.Add(z);
+                vertices.Add(0.6f + t * 0.4f); vertices.Add(0.3f); vertices.Add(0.8f - t * 0.3f);
+
+                // 添加螺旋管道的厚度
+                float tubeRadius = 0.1f;
+                for (int j = 0; j < 8; j++)
+                {
+                    float tubeAngle = j * MathF.PI * 2 / 8;
+                    float dx = tubeRadius * MathF.Cos(tubeAngle);
+                    float dy = tubeRadius * MathF.Sin(tubeAngle);
+                    
+                    vertices.Add(x + dx); vertices.Add(y + dy); vertices.Add(z);
+                    vertices.Add(0.6f + t * 0.4f); vertices.Add(0.3f); vertices.Add(0.8f - t * 0.3f);
+                }
+            }
+
+            // 简化索引生成
+            for (int i = 0; i < segments; i++)
+            {
+                uint current = (uint)(i * 9);
+                uint next = (uint)((i + 1) * 9);
+                
+                for (int j = 0; j < 8; j++)
+                {
+                    uint c1 = current + 1 + (uint)j;
+                    uint c2 = current + 1 + (uint)((j + 1) % 8);
+                    uint n1 = next + 1 + (uint)j;
+                    uint n2 = next + 1 + (uint)((j + 1) % 8);
+                    
+                    indices.Add(c1); indices.Add(n1); indices.Add(c2);
+                    indices.Add(c2); indices.Add(n1); indices.Add(n2);
+                }
+            }
+
+            return new Model3D
+            {
+                Name = "Spiral",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = vertices.Count / 6,
+                IndexCount = indices.Count
+            };
+        }
+
+        public static Model3D CreateTorus(float majorRadius = 1.0f, float minorRadius = 0.3f, int majorSegments = 32, int minorSegments = 16)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            for (int i = 0; i <= majorSegments; i++)
+            {
+                float u = 2.0f * MathF.PI * i / majorSegments;
+                for (int j = 0; j <= minorSegments; j++)
+                {
+                    float v = 2.0f * MathF.PI * j / minorSegments;
+                    
+                    float x = (majorRadius + minorRadius * MathF.Cos(v)) * MathF.Cos(u);
+                    float y = minorRadius * MathF.Sin(v);
+                    float z = (majorRadius + minorRadius * MathF.Cos(v)) * MathF.Sin(u);
+
+                    vertices.Add(x); vertices.Add(y); vertices.Add(z);
+                    
+                    float colorU = i / (float)majorSegments;
+                    float colorV = j / (float)minorSegments;
+                    vertices.Add(0.9f); vertices.Add(0.6f - colorU * 0.4f); vertices.Add(0.2f + colorV * 0.6f);
+                }
+            }
+
+            for (int i = 0; i < majorSegments; i++)
+            {
+                for (int j = 0; j < minorSegments; j++)
+                {
+                    uint current = (uint)(i * (minorSegments + 1) + j);
+                    uint next = (uint)((i + 1) * (minorSegments + 1) + j);
+                    
+                    indices.Add(current); indices.Add(next); indices.Add(current + 1);
+                    indices.Add(current + 1); indices.Add(next); indices.Add(next + 1);
+                }
+            }
+
+            return new Model3D
+            {
+                Name = "Torus",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = vertices.Count / 6,
+                IndexCount = indices.Count
+            };
+        }
+
+        /// <summary>
+        /// 创建悬臂梁模型 - 简化为长方形平面，增加顶点密度以便动画效果更明显
+        /// </summary>
+        /// <param name="length">梁长度</param>
+        /// <param name="width">梁宽度</param>
+        /// <param name="lengthSegments">长度方向分段数</param>
+        /// <param name="widthSegments">宽度方向分段数</param>
+        /// <returns>悬臂梁模型</returns>
+        public static Model3D CreateCantileverBeam(float length = 8.0f, float width = 1.0f, 
+                                                   int lengthSegments = 40, int widthSegments = 8)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            // 生成长方形平面的顶点 (在XY平面上)
+            for (int i = 0; i <= lengthSegments; i++)
+            {
+                for (int j = 0; j <= widthSegments; j++)
+                {
+                    float x = ((float)i / lengthSegments - 0.5f) * length; // 沿X轴居中 (-length/2到length/2)
+                    float y = ((float)j / widthSegments - 0.5f) * width; // Y轴居中 (-width/2到width/2)
+                    float z = 0.0f; // 平面在Z=0处
+
+                    vertices.Add(x); vertices.Add(y); vertices.Add(z);
+                    
+                    // 根据位置生成颜色渐变 (从固定端到自由端)
+                    float colorGradient = (float)i / lengthSegments;
+                    vertices.Add(0.8f + colorGradient * 0.2f); // R - 银色到白色
+                    vertices.Add(0.8f + colorGradient * 0.1f); // G 
+                    vertices.Add(0.9f); // B - 保持高亮
+                }
+            }
+
+            // 生成三角形面的索引
+            for (int i = 0; i < lengthSegments; i++)
+            {
+                for (int j = 0; j < widthSegments; j++)
+                {
+                    uint topLeft = (uint)(i * (widthSegments + 1) + j);
+                    uint topRight = (uint)(i * (widthSegments + 1) + j + 1);
+                    uint bottomLeft = (uint)((i + 1) * (widthSegments + 1) + j);
+                    uint bottomRight = (uint)((i + 1) * (widthSegments + 1) + j + 1);
+
+                    // 第一个三角形 (左上, 右上, 左下)
+                    indices.Add(topLeft);
+                    indices.Add(topRight);
+                    indices.Add(bottomLeft);
+
+                    // 第二个三角形 (右上, 右下, 左下)
+                    indices.Add(topRight);
+                    indices.Add(bottomRight);
+                    indices.Add(bottomLeft);
+                }
+            }
+
+            return new Model3D
+            {
+                Name = "CantileverBeam",
+                Vertices = vertices.ToArray(),
+                Indices = indices.ToArray(),
+                VertexCount = vertices.Count / 6,
+                IndexCount = indices.Count
+            };
         }
     }
 }

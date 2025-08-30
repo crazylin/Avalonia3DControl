@@ -2,6 +2,7 @@ using System;
 using OpenTK.Mathematics;
 using Avalonia3DControl.Materials;
 using Avalonia3DControl.Geometry.Factories;
+using Avalonia3DControl.Core.Animation;
 
 namespace Avalonia3DControl.Core.Models
 {
@@ -23,6 +24,27 @@ namespace Avalonia3DControl.Core.Models
         public uint[] Indices { get; set; } = Array.Empty<uint>();
         public int VertexCount { get; set; }
         public int IndexCount { get; set; }
+        
+        // 动画相关
+        /// <summary>
+        /// 振型动画控制器
+        /// </summary>
+        public ModalAnimationController? AnimationController { get; set; }
+        
+        /// <summary>
+        /// 是否启用动画
+        /// </summary>
+        public bool IsAnimationEnabled { get; set; } = false;
+        
+        /// <summary>
+        /// 顶点是否需要更新（用于渲染器优化）
+        /// </summary>
+        public bool VerticesNeedUpdate { get; set; } = false;
+        
+        /// <summary>
+        /// 请求渲染事件
+        /// </summary>
+        public event Action? RenderRequested;
 
         public Model3D()
         {
@@ -33,6 +55,63 @@ namespace Avalonia3DControl.Core.Models
             Material = new Material();
             Visible = true;
             Name = "Model";
+            AnimationController = null;
+            IsAnimationEnabled = false;
+            VerticesNeedUpdate = false;
+        }
+        
+        /// <summary>
+        /// 启用振型动画
+        /// </summary>
+        /// <param name="modalDataSet">振型数据集</param>
+        public void EnableModalAnimation(ModalDataSet modalDataSet)
+        {
+            if (AnimationController == null)
+            {
+                AnimationController = new ModalAnimationController();
+                AnimationController.VerticesUpdated += OnVerticesUpdated;
+            }
+            
+            AnimationController.SetModalDataSet(modalDataSet);
+            AnimationController.SetTargetModel(this);
+            IsAnimationEnabled = true;
+        }
+        
+        /// <summary>
+        /// 禁用振型动画
+        /// </summary>
+        public void DisableModalAnimation()
+        {
+            if (AnimationController != null)
+            {
+                AnimationController.Stop();
+                AnimationController.VerticesUpdated -= OnVerticesUpdated;
+                AnimationController.Dispose();
+                AnimationController = null;
+            }
+            IsAnimationEnabled = false;
+            VerticesNeedUpdate = false;
+        }
+        
+        /// <summary>
+        /// 更新动画（每帧调用）
+        /// </summary>
+        public void UpdateAnimation()
+        {
+            if (IsAnimationEnabled && AnimationController != null)
+            {
+                AnimationController.Update();
+            }
+        }
+        
+        /// <summary>
+        /// 顶点更新回调
+        /// </summary>
+        /// <param name="model">更新的模型</param>
+        private void OnVerticesUpdated(Model3D model)
+        {
+            VerticesNeedUpdate = true;
+            RenderRequested?.Invoke();
         }
 
         public virtual Matrix4 GetModelMatrix()

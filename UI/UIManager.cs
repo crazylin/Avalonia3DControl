@@ -3,11 +3,13 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using OpenTK.Mathematics;
 using System;
+using System.Linq;
 using Avalonia3DControl.Materials;
 using Avalonia3DControl.Core;
 using Avalonia3DControl.Core.Models;
 using Avalonia3DControl.Core.Cameras;
 using Avalonia3DControl.Rendering;
+using Avalonia3DControl.Core.Animation;
 
 namespace Avalonia3DControl.UI
 {
@@ -18,6 +20,7 @@ namespace Avalonia3DControl.UI
     {
         private readonly Window _window;
         private readonly OpenGL3DControl _openGLControl;
+        private ModalAnimationPanel? _modalAnimationPanel;
 
         public UIManager(Window window, OpenGL3DControl openGLControl)
         {
@@ -39,6 +42,8 @@ namespace Avalonia3DControl.UI
             SetupModelSelectionHandlers();
             SetupCoordinateAxesHandler();
             SetupMiniAxesHandlers();
+            SetupGradientBarHandlers();
+            SetupModalAnimationPanel();
         }
 
         /// <summary>
@@ -200,7 +205,8 @@ namespace Avalonia3DControl.UI
                 ("CubeModelRadio", "Cube"),
                 ("SphereModelRadio", "Sphere"),
                 ("WaveModelRadio", "Wave"),
-                ("WaterDropModelRadio", "WaterDrop")
+                ("WaterDropModelRadio", "WaterDrop"),
+                ("CantileverBeamModelRadio", "CantileverBeam")
             };
 
             foreach (var (controlName, modelName) in models)
@@ -387,6 +393,22 @@ namespace Avalonia3DControl.UI
         {
             // 切换到模型
             _openGLControl.SetCurrentModel(modelName);
+            
+            // 如果加载了模型，为其设置动画控制器
+            if (!string.IsNullOrEmpty(modelName) && _modalAnimationPanel != null)
+            {
+                // 订阅梯度条事件
+                _modalAnimationPanel.GradientBarVisibilityChanged += OnGradientBarVisibilityChanged;
+                _modalAnimationPanel.GradientBarPositionChanged += OnGradientBarPositionChanged;
+                // 订阅颜色梯度变化事件
+                _modalAnimationPanel.ColorGradientTypeChanged += (newType) =>
+                {
+                    _openGLControl?.SetGradientBarType(newType);
+                };
+                
+                // 初始设置动画控制器（将在模型选择时更新）
+                SetupAnimationForCurrentModel();
+            }
         }
 
         /// <summary>
@@ -451,6 +473,120 @@ namespace Avalonia3DControl.UI
                     ShowOnlyModel("Cube");
                 }
             }, Avalonia.Threading.DispatcherPriority.Background);
+        }
+        
+        /// <summary>
+        /// 设置振型动画控制面板
+        /// </summary>
+        private void SetupModalAnimationPanel()
+        {
+            _modalAnimationPanel = _window.FindControl<ModalAnimationPanel>("ModalAnimationPanel");
+            
+            if (_modalAnimationPanel != null)
+            {
+                // 订阅梯度条事件
+                _modalAnimationPanel.GradientBarVisibilityChanged += OnGradientBarVisibilityChanged;
+                _modalAnimationPanel.GradientBarPositionChanged += OnGradientBarPositionChanged;
+                
+                // 初始设置动画控制器（将在模型选择时更新）
+                SetupAnimationForCurrentModel();
+            }
+        }
+        
+        /// <summary>
+        /// 为当前模型设置动画
+        /// </summary>
+        private void SetupAnimationForCurrentModel()
+        {
+            var scene = _openGLControl.Scene;
+            if (scene?.Models != null && scene.Models.Count > 0)
+            {
+                // 为第一个模型启用振型动画（通常是主模型）
+                var mainModel = scene.Models.FirstOrDefault();
+                if (mainModel != null && _modalAnimationPanel != null)
+                {
+                    // 根据模型名称选择合适的振型数据
+                    ModalDataSet modalDataSet;
+                    if (mainModel.Name != null && mainModel.Name.Contains("CantileverBeam"))
+                    {
+                        // 为悬臂梁模型使用专门的振型数据
+                        modalDataSet = _modalAnimationPanel.CreateCantileverBeamModalData();
+                    }
+                    else
+                    {
+                        // 为其他模型使用通用振型数据
+                        modalDataSet = _modalAnimationPanel.CreateSampleModalData();
+                    }
+                    
+                    // 启用模型的振型动画
+                    mainModel.EnableModalAnimation(modalDataSet);
+                    
+                    // 将动画控制器绑定到UI面板
+                    if (mainModel.AnimationController != null)
+                    {
+                        _modalAnimationPanel.SetAnimationController(mainModel.AnimationController, mainModel);
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 设置梯度条控制事件处理器
+        /// </summary>
+        private void SetupGradientBarHandlers()
+        {
+            var showGradientBarCheckBox = _window.FindControl<CheckBox>("ShowGradientBarCheckBox");
+            if (showGradientBarCheckBox != null)
+            {
+                showGradientBarCheckBox.IsCheckedChanged += (s, e) =>
+                {
+                    OnGradientBarVisibilityChanged(showGradientBarCheckBox.IsChecked == true);
+                };
+            }
+
+            var gradientBarLeftRadio = _window.FindControl<RadioButton>("GradientBarLeftRadio");
+            var gradientBarRightRadio = _window.FindControl<RadioButton>("GradientBarRightRadio");
+            
+            Console.WriteLine($"找到左侧RadioButton: {gradientBarLeftRadio != null}");
+            Console.WriteLine($"找到右侧RadioButton: {gradientBarRightRadio != null}");
+            
+            if (gradientBarLeftRadio != null)
+            {
+                gradientBarLeftRadio.IsCheckedChanged += (s, e) =>
+                {
+                    Console.WriteLine($"左侧RadioButton状态变化: {gradientBarLeftRadio.IsChecked}");
+                    if (gradientBarLeftRadio.IsChecked == true)
+                        OnGradientBarPositionChanged(GradientBarPosition.Left);
+                };
+            }
+            
+            if (gradientBarRightRadio != null)
+            {
+                gradientBarRightRadio.IsCheckedChanged += (s, e) =>
+                {
+                    Console.WriteLine($"右侧RadioButton状态变化: {gradientBarRightRadio.IsChecked}");
+                    if (gradientBarRightRadio.IsChecked == true)
+                        OnGradientBarPositionChanged(GradientBarPosition.Right);
+                };
+            }
+        }
+        
+        /// <summary>
+        /// 处理梯度条可见性变化事件
+        /// </summary>
+        /// <param name="isVisible">是否可见</param>
+        private void OnGradientBarVisibilityChanged(bool isVisible)
+        {
+            _openGLControl.SetGradientBarVisible(isVisible);
+        }
+        
+        /// <summary>
+        /// 处理梯度条位置变化事件
+        /// </summary>
+        /// <param name="position">梯度条位置</param>
+        private void OnGradientBarPositionChanged(GradientBarPosition position)
+        {
+            _openGLControl.SetGradientBarPosition(position);
         }
     }
 }

@@ -26,6 +26,8 @@ using Avalonia3DControl.Core.Lighting;
 using Avalonia3DControl.Materials;
 using Avalonia3DControl.Rendering.OpenGL;
 using Avalonia3DControl.Geometry.Factories;
+using Avalonia3DControl.UI;
+using Avalonia3DControl.Core.Animation;
 
 namespace Avalonia3DControl
 {
@@ -41,7 +43,7 @@ namespace Avalonia3DControl
         private const float ZOOM_SMOOTHING = 0.25f; // 增加缩放平滑系数
         private const float MIN_ZOOM = 0.2f;
         private const float MAX_ZOOM = 10.0f;
-        private const float CAMERA_DISTANCE = 3.0f;
+        private const float CAMERA_DISTANCE = 10.0f;
         private const float ROTATION_LIMIT_OFFSET = 0.1f;
         #endregion
 
@@ -151,7 +153,7 @@ namespace Avalonia3DControl
 
                 // 渲染场景（包含坐标轴）
                 var coordinateAxes = Scene.ShowCoordinateAxes ? Scene.CoordinateAxes : null;
-                _renderer?.RenderSceneWithAxes(Scene.Camera, Scene.Models, Scene.Lights, Scene.BackgroundColor, _currentShadingMode, _currentRenderMode, coordinateAxes, Scene.MiniAxes);
+                _renderer?.RenderSceneWithAxes(Scene.Camera, Scene.Models, Scene.Lights, Scene.BackgroundColor, _currentShadingMode, _currentRenderMode, coordinateAxes, Scene.MiniAxes, renderScaling);
             }
             catch (Exception ex)
             {
@@ -446,6 +448,8 @@ namespace Avalonia3DControl
 
         public void AddModel(Model3D model)
         {
+            // 订阅模型的渲染请求事件
+            model.RenderRequested += () => RequestNextFrameRendering();
             Scene.Models.Add(model);
             RequestNextFrameRendering();
         }
@@ -510,6 +514,8 @@ namespace Avalonia3DControl
                 var model = GeometryFactory.CreateModel(modelType);
                 if (model != null)
                 {
+                    // 订阅模型的渲染请求事件
+                    model.RenderRequested += () => RequestNextFrameRendering();
                     AddModel(model);
                 }
             }
@@ -540,6 +546,35 @@ namespace Avalonia3DControl
         public ProjectionMode GetProjectionMode()
         {
             return Scene.Camera.Mode;
+        }
+        
+        /// <summary>
+        /// 设置梯度条可见性
+        /// </summary>
+        /// <param name="isVisible">是否可见</param>
+        public void SetGradientBarVisible(bool isVisible)
+        {
+            _renderer?.SetGradientBarVisible(isVisible);
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 设置梯度条位置
+        /// </summary>
+        /// <param name="position">梯度条位置</param>
+        public void SetGradientBarPosition(GradientBarPosition position)
+        {
+            _renderer?.SetGradientBarPosition(position);
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 设置梯度条颜色梯度类型
+        /// </summary>
+        public void SetGradientBarType(ColorGradientType gradientType)
+        {
+            _renderer?.SetGradientBarType(gradientType);
+            RequestNextFrameRendering();
         }
         #endregion
 

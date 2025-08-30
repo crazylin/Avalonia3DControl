@@ -6,7 +6,9 @@ using Avalonia3DControl.Core;
 using Avalonia3DControl.Core.Models;
 using Avalonia3DControl.Core.Lighting;
 using Avalonia3DControl.Core.Cameras;
+using Avalonia3DControl.Core.Animation;
 using Avalonia3DControl.Materials;
+using Avalonia3DControl.UI;
 
 namespace Avalonia3DControl.Rendering.OpenGL
 {
@@ -20,6 +22,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
         private Dictionary<ShadingMode, int> _shaderPrograms;
         private int _defaultTexture = 0;
         private bool _isInitialized = false;
+        private GradientBar? _gradientBar;
         #endregion
 
         #region 内部类
@@ -36,6 +39,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
         {
             _modelRenderData = new Dictionary<Model3D, ModelRenderData>();
             _shaderPrograms = new Dictionary<ShadingMode, int>();
+            _gradientBar = new GradientBar();
         }
         #endregion
 
@@ -69,6 +73,30 @@ namespace Avalonia3DControl.Rendering.OpenGL
             ConfigureOpenGLState();
             InitializeShaders();
             CreateDefaultTexture();
+            
+            // 初始化梯度条
+            Console.WriteLine("开始初始化渲染器中的梯度条...");
+            if (_gradientBar == null)
+            {
+                Console.WriteLine("创建新的梯度条实例");
+                _gradientBar = new GradientBar();
+            }
+            else
+            {
+                Console.WriteLine("使用现有的梯度条实例");
+            }
+            
+            try
+            {
+                _gradientBar.Initialize();
+                Console.WriteLine("渲染器中的梯度条初始化成功");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"渲染器中的梯度条初始化失败: {ex.Message}");
+                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+            }
+            
             _isInitialized = true;
         }
 
@@ -172,12 +200,18 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// <summary>
         /// 渲染场景（包含坐标轴）
         /// </summary>
-        public void RenderSceneWithAxes(Camera camera, List<Model3D> models, List<Light> lights, Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode, Model3D? coordinateAxes = null, MiniAxes? miniAxes = null)
+        /// <param name="coordinateAxes">可选的坐标轴模型</param>
+        /// <param name="miniAxes">可选的迷你坐标轴</param>
+        /// <param name="dpiScale">DPI缩放比例</param>
+        public void RenderSceneWithAxes(Camera camera, List<Model3D> models, List<Light> lights, Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode, Model3D? coordinateAxes = null, MiniAxes? miniAxes = null, double dpiScale = 1.0)
         {
             if (!_isInitialized) 
             {
                 return;
             }
+            
+            // 更新所有模型的动画
+            UpdateAnimations(models);
             
             // 清除缓冲区
             CheckGLError("清除缓冲区前");
@@ -249,6 +283,22 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 RenderMiniAxes(miniAxes, camera, shaderProgram);
             }
             
+            // 渲染梯度条（在所有3D内容之后渲染，确保在最前面显示）
+            if (_gradientBar != null)
+            {
+                // 获取当前视口尺寸
+                int[] viewport = new int[4];
+                GL.GetInteger(GetPName.Viewport, viewport);
+                Console.WriteLine($"调用梯度条前 Viewport: x={viewport[0]}, y={viewport[1]}, w={viewport[2]}, h={viewport[3]}");
+                // 确保原点为(0,0)，避免被之前的小视口偏移影响
+                if (viewport[0] != 0 || viewport[1] != 0)
+                {
+                    GL.Viewport(0, 0, viewport[2], viewport[3]);
+                    Console.WriteLine("已将 Viewport 原点重置为(0,0)");
+                }
+                _gradientBar.Render(viewport[2], viewport[3], dpiScale);
+            }
+            
             GL.UseProgram(0);
         }
 
@@ -263,6 +313,13 @@ namespace Avalonia3DControl.Rendering.OpenGL
             if (!_modelRenderData.ContainsKey(model))
             {
                 CreateModelRenderData(model);
+            }
+            
+            // 如果顶点需要更新，更新顶点缓冲区
+            if (model.VerticesNeedUpdate)
+            {
+                UpdateModelVertexBuffer(model);
+                model.VerticesNeedUpdate = false;
             }
             
             var renderData = _modelRenderData[model];
@@ -398,26 +455,85 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// <param name="model">模型</param>
         private void CreateModelRenderData(Model3D model)
         {
+            // 验证模型数据
+            if (model?.Vertices == null || model.Vertices.Length == 0)
+            {
+                Console.WriteLine("错误: 模型顶点数据无效，无法创建渲染数据");
+                return;
+            }
+            
+            if (model.Indices == null || model.Indices.Length == 0)
+            {
+                Console.WriteLine("错误: 模型索引数据无效，无法创建渲染数据");
+                return;
+            }
+            
             var renderData = new ModelRenderData();
             
-            // 生成VAO, VBO, EBO
-            renderData.VAO = GL.GenVertexArray();
-            renderData.VBO = GL.GenBuffer();
-            renderData.EBO = GL.GenBuffer();
-            
-            GL.BindVertexArray(renderData.VAO);
-            
-            // 绑定顶点缓冲区
-            GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
-            GL.BufferData(BufferTarget.ArrayBuffer, model.Vertices.Length * sizeof(float), model.Vertices, BufferUsageHint.DynamicDraw);
-            
-            // 绑定索引缓冲区
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, model.Indices.Length * sizeof(uint), model.Indices, BufferUsageHint.StaticDraw);
-            
-            GL.BindVertexArray(0);
-            
-            _modelRenderData[model] = renderData;
+            try
+            {
+                // 清理任何遗留的OpenGL错误（限制清理次数防止无限循环）
+                int errorClearCount = 0;
+                while (GL.GetError() != ErrorCode.NoError && errorClearCount < 10)
+                {
+                    errorClearCount++;
+                }
+                
+                // 生成VAO, VBO, EBO
+                renderData.VAO = GL.GenVertexArray();
+                renderData.VBO = GL.GenBuffer();
+                renderData.EBO = GL.GenBuffer();
+                
+                // 检查缓冲区是否创建成功
+                if (renderData.VAO == 0 || renderData.VBO == 0 || renderData.EBO == 0)
+                {
+                    Console.WriteLine($"错误: 缓冲区创建失败 - VAO: {renderData.VAO}, VBO: {renderData.VBO}, EBO: {renderData.EBO}");
+                    return;
+                }
+                
+
+                
+                GL.BindVertexArray(renderData.VAO);
+                
+                // 绑定顶点缓冲区
+                GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
+                
+
+                
+                int vertexDataSize = model.Vertices.Length * sizeof(float);
+                
+
+                
+                GL.BufferData(BufferTarget.ArrayBuffer, vertexDataSize, model.Vertices, BufferUsageHint.DynamicDraw);
+                
+
+                
+                // 绑定索引缓冲区
+                GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
+                int indexDataSize = model.Indices.Length * sizeof(uint);
+                GL.BufferData(BufferTarget.ElementArrayBuffer, indexDataSize, model.Indices, BufferUsageHint.StaticDraw);
+                
+                // 检查索引缓冲区创建
+                var indexError = GL.GetError();
+                if (indexError != ErrorCode.NoError)
+                {
+                    Console.WriteLine($"创建索引缓冲区时发生OpenGL错误: {indexError}, 数据大小: {indexDataSize}");
+                }
+                
+                GL.BindVertexArray(0);
+                
+                _modelRenderData[model] = renderData;
+                Console.WriteLine($"成功创建模型渲染数据 - 顶点: {model.Vertices.Length}, 索引: {model.Indices.Length}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"创建模型渲染数据时发生异常: {ex.Message}");
+                
+                // 清理可能已创建的资源
+                if (renderData.VAO != 0) GL.DeleteVertexArray(renderData.VAO);
+                if (renderData.VBO != 0) GL.DeleteBuffer(renderData.VBO);
+                if (renderData.EBO != 0) GL.DeleteBuffer(renderData.EBO);
+            }
         }
         
         /// <summary>
@@ -431,28 +547,125 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 return; // 如果渲染器未初始化或模型数据无效，跳过更新
             }
             
+            // 检查顶点数组是否有效
+            if (model.Vertices.Length == 0)
+            {
+                Console.WriteLine("警告: 顶点数组长度为0，跳过更新");
+                return;
+            }
+            
             if (!_modelRenderData.TryGetValue(model, out var renderData))
             {
+                Console.WriteLine("警告: 模型没有渲染数据，跳过更新");
                 return; // 如果模型没有渲染数据，跳过更新
+            }
+            
+            // 检查VBO是否有效
+            if (renderData.VBO == 0)
+            {
+                Console.WriteLine("错误: VBO无效，跳过更新");
+                return;
+            }
+            
+            // 检查VBO是否仍然是有效的OpenGL对象
+            if (!GL.IsBuffer(renderData.VBO))
+            {
+                Console.WriteLine($"错误: VBO {renderData.VBO} 不是有效的OpenGL缓冲区对象，重新创建模型渲染数据");
+                // 重新创建渲染数据
+                CreateModelRenderData(model);
+                if (!_modelRenderData.TryGetValue(model, out renderData) || !GL.IsBuffer(renderData.VBO))
+                {
+                    Console.WriteLine("错误: 重新创建VBO失败");
+                    return;
+                }
             }
             
             try
             {
+                // 检查VBO是否仍然有效
+                if (!GL.IsBuffer(renderData.VBO))
+                {
+                    _modelRenderData.Remove(model);
+                    CreateModelRenderData(model);
+                    return;
+                }
+                
+                // 清理任何遗留的OpenGL错误（限制清理次数防止无限循环）
+                int errorClearCount = 0;
+                while (GL.GetError() != ErrorCode.NoError && errorClearCount < 10)
+                {
+                    errorClearCount++;
+                }
+                
                 // 绑定并更新顶点缓冲区
                 GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
-                GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, model.Vertices.Length * sizeof(float), model.Vertices);
+                
+                // 检查绑定是否成功
+                var bindError = GL.GetError();
+                if (bindError != ErrorCode.NoError)
+                {
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                    return;
+                }
+                
+                // 计算数据大小
+                int dataSize = model.Vertices.Length * sizeof(float);
+                if (dataSize <= 0)
+                {
+                    Console.WriteLine($"错误: 数据大小无效: {dataSize}");
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                    return;
+                }
+                
+                // 获取当前缓冲区大小
+                GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int currentBufferSize);
+                
+                // 如果新数据大小超过当前缓冲区大小，重新分配缓冲区
+                if (dataSize > currentBufferSize)
+                {
+                    Console.WriteLine($"缓冲区大小不足，重新分配: 当前 {currentBufferSize} bytes, 需要 {dataSize} bytes");
+                    GL.BufferData(BufferTarget.ArrayBuffer, dataSize, model.Vertices, BufferUsageHint.DynamicDraw);
+                }
+                else
+                {
+                    // 更新缓冲区数据
+                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, dataSize, model.Vertices);
+                }
+                
+                // 解绑缓冲区
                 GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
                 
                 // 检查OpenGL错误
                 var error = GL.GetError();
                 if (error != ErrorCode.NoError)
                 {
-                    Console.WriteLine($"更新顶点缓冲区时发生OpenGL错误: {error}");
+                    Console.WriteLine($"更新顶点缓冲区时发生OpenGL错误: {error}, 数据大小: {dataSize}, 顶点数量: {model.Vertices.Length}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"更新顶点缓冲区时发生异常: {ex.Message}");
+                // 确保解绑缓冲区
+                try
+                {
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                }
+                catch { }
+            }
+        }
+        
+        /// <summary>
+        /// 更新所有模型的动画
+        /// </summary>
+        /// <param name="models">模型列表</param>
+        private void UpdateAnimations(List<Model3D> models)
+        {
+            foreach (var model in models)
+            {
+                if (model.IsAnimationEnabled)
+                {
+                    model.UpdateAnimation();
+                }
             }
         }
         #endregion
@@ -467,11 +680,14 @@ namespace Avalonia3DControl.Rendering.OpenGL
                     break;
                 case RenderMode.Line:
                     GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
-                    GL.LineWidth(3.0f); // 增加线条粗细
+                    GL.LineWidth(5.0f); // 增加线条粗细以更好显示动画效果
+                    // 启用线条平滑以获得更好的视觉效果
+                    GL.Enable(EnableCap.LineSmooth);
+                    GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
                     break;
                 case RenderMode.Point:
                     GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Point);
-                    GL.PointSize(5.0f); // 增加点的大小
+                    GL.PointSize(8.0f); // 增加点的大小以更好显示动画效果
                     break;
             }
         }
@@ -864,42 +1080,52 @@ void main()
             // 保存原始视口
             int[] originalViewport = new int[4];
             GL.GetInteger(GetPName.Viewport, originalViewport);
+            // 也保存当前着色器，确保渲染后能正确恢复
+            GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
             
-            GL.Viewport(miniX, miniY, miniViewportSize, miniViewportSize);
+            try
+            {
+                GL.Viewport(miniX, miniY, miniViewportSize, miniViewportSize);
             
-            // 切换到顶点着色器
-            GL.UseProgram(miniAxesShaderProgram);
+                // 切换到顶点着色器
+                GL.UseProgram(miniAxesShaderProgram);
             
-            // 创建迷你坐标轴的投影矩阵（正交投影，扩大视场范围避免截取）
-            Matrix4 miniProjection = Matrix4.CreateOrthographic(3.5f, 3.5f, 0.1f, 10.0f);
+                // 创建迷你坐标轴的投影矩阵（正交投影，扩大视场范围避免截取）
+                Matrix4 miniProjection = Matrix4.CreateOrthographic(3.5f, 3.5f, 0.1f, 10.0f);
             
-            // 创建迷你坐标轴的视图矩阵（跟随主相机的旋转）
-            Vector3 cameraDirection = Vector3.Normalize(camera.Target - camera.Position);
-            Vector3 cameraUp = camera.Up;
-            Vector3 miniCameraPos = -cameraDirection * 3.0f; // 距离原点3个单位
-            Matrix4 miniView = Matrix4.LookAt(miniCameraPos, Vector3.Zero, cameraUp);
+                // 创建迷你坐标轴的视图矩阵（跟随主相机的旋转）
+                Vector3 cameraDirection = Vector3.Normalize(camera.Target - camera.Position);
+                Vector3 cameraUp = camera.Up;
+                Vector3 miniCameraPos = -cameraDirection * 3.0f; // 距离原点3个单位
+                Matrix4 miniView = Matrix4.LookAt(miniCameraPos, Vector3.Zero, cameraUp);
             
-            // 设置迷你坐标轴的矩阵
-            SetMatrix(miniAxesShaderProgram, "view", miniView);
-            SetMatrix(miniAxesShaderProgram, "projection", miniProjection);
+                // 设置迷你坐标轴的矩阵
+                SetMatrix(miniAxesShaderProgram, "view", miniView);
+                SetMatrix(miniAxesShaderProgram, "projection", miniProjection);
             
-            // 强制使用填充模式渲染迷你坐标轴
-            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
+                // 强制使用填充模式渲染迷你坐标轴
+                GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
             
-            // 渲染迷你坐标轴模型
-            RenderModel(miniAxes.AxesModel, miniAxesShaderProgram);
+                // 渲染迷你坐标轴模型
+                RenderModel(miniAxes.AxesModel, miniAxesShaderProgram);
             
-            // 禁用深度测试以确保标注可见
-            GL.Disable(EnableCap.DepthTest);
+                // 禁用深度测试以确保标注可见
+                GL.Disable(EnableCap.DepthTest);
             
-            // 渲染XYZ标注
-            RenderAxisLabels(miniAxesShaderProgram, miniView, miniProjection);
+                // 渲染XYZ标注
+                RenderAxisLabels(miniAxesShaderProgram, miniView, miniProjection);
             
-            // 重新启用深度测试
-            GL.Enable(EnableCap.DepthTest);
-            
-            // 恢复原始视口和着色器
-            GL.Viewport(originalViewport[0], originalViewport[1], originalViewport[2], originalViewport[3]);
+                // 重新启用深度测试
+                GL.Enable(EnableCap.DepthTest);
+            }
+            finally
+            {
+                // 恢复原始视口和着色器
+                GL.Viewport(originalViewport[0], originalViewport[1], originalViewport[2], originalViewport[3]);
+                GL.UseProgram(prevProgram);
+            }
+        
+            // 恢复原始着色器
             GL.UseProgram(shaderProgram); // 恢复原始着色器
         }
         
@@ -1041,6 +1267,82 @@ void main()
             GL.DeleteBuffer(vbo);
         }
         
+        #region 梯度条控制方法
+        /// <summary>
+        /// 设置梯度条可见性
+        /// </summary>
+        /// <param name="visible">是否可见</param>
+        public void SetGradientBarVisible(bool visible)
+        {
+            if (_gradientBar != null)
+            {
+                _gradientBar.IsVisible = visible;
+            }
+        }
+        
+        /// <summary>
+        /// 设置梯度条位置
+        /// </summary>
+        /// <param name="position">位置（左侧或右侧）</param>
+        public void SetGradientBarPosition(GradientBarPosition position)
+        {
+            Console.WriteLine($"设置梯度条位置: {position}");
+            if (_gradientBar != null)
+            {
+                _gradientBar.Position = position;
+                Console.WriteLine($"梯度条位置已更新为: {_gradientBar.Position}");
+            }
+            else
+            {
+                Console.WriteLine("梯度条实例为null，无法设置位置");
+            }
+        }
+        
+        /// <summary>
+        /// 设置梯度条的颜色梯度类型
+        /// </summary>
+        /// <param name="gradientType">梯度类型</param>
+        public void SetGradientBarType(ColorGradientType gradientType)
+        {
+            if (_gradientBar != null)
+            {
+                _gradientBar.GradientType = gradientType;
+            }
+        }
+        
+        /// <summary>
+        /// 设置梯度条的数值范围
+        /// </summary>
+        /// <param name="minValue">最小值</param>
+        /// <param name="maxValue">最大值</param>
+        public void SetGradientBarRange(float minValue, float maxValue)
+        {
+            if (_gradientBar != null)
+            {
+                _gradientBar.MinValue = minValue;
+                _gradientBar.MaxValue = maxValue;
+            }
+        }
+        
+        /// <summary>
+        /// 获取梯度条是否可见
+        /// </summary>
+        /// <returns>是否可见</returns>
+        public bool IsGradientBarVisible()
+        {
+            return _gradientBar?.IsVisible ?? false;
+        }
+        
+        /// <summary>
+        /// 获取梯度条位置
+        /// </summary>
+        /// <returns>梯度条位置</returns>
+        public GradientBarPosition GetGradientBarPosition()
+        {
+            return _gradientBar?.Position ?? GradientBarPosition.Right;
+        }
+        #endregion
+        
         #region IDisposable实现
         public void Dispose()
         {
@@ -1066,6 +1368,9 @@ void main()
                 GL.DeleteTexture(_defaultTexture);
                 _defaultTexture = 0;
             }
+            
+            // 清理梯度条
+            _gradientBar?.Dispose();
         }
         #endregion
     }
