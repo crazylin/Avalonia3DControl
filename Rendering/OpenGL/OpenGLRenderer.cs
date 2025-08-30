@@ -209,11 +209,23 @@ namespace Avalonia3DControl.Rendering.OpenGL
             // 渲染坐标轴（如果存在且可见）
             if (coordinateAxes != null && coordinateAxes.Visible)
             {
-                // 坐标轴始终使用填充模式渲染，不受全局渲染模式影响
-                GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
-                RenderModel(coordinateAxes, shaderProgram);
-                // 恢复原始渲染模式
-                SetRenderMode(renderMode);
+                // 坐标轴始终使用顶点着色器和填充模式渲染，不受全局着色模式和渲染模式影响
+                if (_shaderPrograms.TryGetValue(ShadingMode.Vertex, out int axesShaderProgram))
+                {
+                    GL.UseProgram(axesShaderProgram);
+                    
+                    // 重新设置矩阵（因为切换了着色器）
+                    SetMatrix(axesShaderProgram, "view", viewMatrix);
+                    SetMatrix(axesShaderProgram, "projection", projectionMatrix);
+                    
+                    // 坐标轴始终使用填充模式渲染
+                    GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
+                    RenderModel(coordinateAxes, axesShaderProgram);
+                    
+                    // 恢复原始着色器和渲染模式
+                    GL.UseProgram(shaderProgram);
+                    SetRenderMode(renderMode);
+                }
             }
             
             // 渲染迷你坐标轴（如果存在且可见）
@@ -629,6 +641,12 @@ void main()
         {
             if (miniAxes.AxesModel == null) return;
             
+            // 迷你坐标轴始终使用顶点着色器
+            if (!_shaderPrograms.TryGetValue(ShadingMode.Vertex, out int miniAxesShaderProgram))
+            {
+                return; // 如果顶点着色器不存在，跳过渲染
+            }
+            
             // 保存当前的视口设置
             int[] viewport = new int[4];
             GL.GetInteger(GetPName.Viewport, viewport);
@@ -653,6 +671,9 @@ void main()
             
             GL.Viewport(miniX, miniY, miniViewportSize, miniViewportSize);
             
+            // 切换到顶点着色器
+            GL.UseProgram(miniAxesShaderProgram);
+            
             // 创建迷你坐标轴的投影矩阵（正交投影，扩大视场范围避免截取）
             Matrix4 miniProjection = Matrix4.CreateOrthographic(3.5f, 3.5f, 0.1f, 10.0f);
             
@@ -663,26 +684,27 @@ void main()
             Matrix4 miniView = Matrix4.LookAt(miniCameraPos, Vector3.Zero, cameraUp);
             
             // 设置迷你坐标轴的矩阵
-            SetMatrix(shaderProgram, "view", miniView);
-            SetMatrix(shaderProgram, "projection", miniProjection);
+            SetMatrix(miniAxesShaderProgram, "view", miniView);
+            SetMatrix(miniAxesShaderProgram, "projection", miniProjection);
             
             // 强制使用填充模式渲染迷你坐标轴
             GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
             
             // 渲染迷你坐标轴模型
-            RenderModel(miniAxes.AxesModel, shaderProgram);
+            RenderModel(miniAxes.AxesModel, miniAxesShaderProgram);
             
             // 禁用深度测试以确保标注可见
             GL.Disable(EnableCap.DepthTest);
             
             // 渲染XYZ标注
-            RenderAxisLabels(shaderProgram, miniView, miniProjection);
+            RenderAxisLabels(miniAxesShaderProgram, miniView, miniProjection);
             
             // 重新启用深度测试
             GL.Enable(EnableCap.DepthTest);
             
-            // 恢复原始视口
+            // 恢复原始视口和着色器
             GL.Viewport(originalViewport[0], originalViewport[1], originalViewport[2], originalViewport[3]);
+            GL.UseProgram(shaderProgram); // 恢复原始着色器
         }
         
         /// <summary>
