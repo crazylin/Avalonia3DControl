@@ -1,62 +1,61 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Avalonia3DControl.UI.ModalAnimationPanel">
-    <Border Background="#F0F0F0" CornerRadius="5" Padding="10" Margin="5">
-        <StackPanel Orientation="Vertical" Spacing="10">
-            <!-- 标题 -->
-            <TextBlock Text="振型动画控制" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center"/>
-            
+    <Border Padding="6" Margin="4">
+        <StackPanel Orientation="Vertical" Spacing="4">
             <!-- 播放控制按钮 -->
-            <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
-                <Button Name="PlayButton" Content="播放" Width="60" Height="30" Background="#4CAF50" Foreground="White"/>
-                <Button Name="PauseButton" Content="暂停" Width="60" Height="30" Background="#FF9800" Foreground="White"/>
-                <Button Name="PrevFrameButton" Content="前一帧" Width="60" Height="30" Background="#9C27B0" Foreground="White"/>
-                <Button Name="NextFrameButton" Content="后一帧" Width="60" Height="30" Background="#9C27B0" Foreground="White"/>
-                <Button Name="StopButton" Content="停止" Width="60" Height="30" Background="#F44336" Foreground="White"/>
-                <Button Name="ResetButton" Content="重置" Width="60" Height="30" Background="#2196F3" Foreground="White"/>
-            </StackPanel>
-            
+            <Border Padding="0" Margin="0">
+                <WrapPanel HorizontalAlignment="Center">
+                    <Button Name="PlayButton" Content="播放"  Margin="0,0,6,0"/>
+                    <Button Name="PauseButton" Content="暂停"  Margin="0,0,6,0"/>
+                    <Button Name="PrevFrameButton" Content="前一帧"  Margin="0,0,6,0"/>
+                    <Button Name="NextFrameButton" Content="后一帧"  Margin="0,0,6,0"/>
+                    <Button Name="StopButton" Content="停止"  Margin="0,0,6,0"/>
+                    <Button Name="ResetButton" Content="重置" />
+                </WrapPanel>
+            </Border>
+
             <!-- 动画速度控制 -->
-            <StackPanel Orientation="Vertical" Spacing="5">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="动画速度:" VerticalAlignment="Center" Width="70"/>
-                    <TextBlock Name="SpeedValueText" Text="0.005x" VerticalAlignment="Center" Width="40"/>
+            <StackPanel Orientation="Vertical" Spacing="2">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="动画速度:" VerticalAlignment="Center"/>
+                    <TextBlock Name="SpeedValueText" Text="0.005x" VerticalAlignment="Center"/>
                 </StackPanel>
                 <Slider Name="SpeedSlider" Minimum="0.001" Maximum="5.0" Value="0.005" 
-                        TickFrequency="0.001" IsSnapToTickEnabled="True" Width="200"/>
+                        TickFrequency="0.001" IsSnapToTickEnabled="True" HorizontalAlignment="Stretch"/>
             </StackPanel>
             
             <!-- 振幅放大系数控制 -->
-            <StackPanel Orientation="Vertical" Spacing="5">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="振幅放大:" VerticalAlignment="Center" Width="70"/>
-                    <TextBlock Name="AmplitudeValueText" Text="1.0x" VerticalAlignment="Center" Width="40"/>
+            <StackPanel Orientation="Vertical" Spacing="2">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="振幅放大:" VerticalAlignment="Center"/>
+                    <TextBlock Name="AmplitudeValueText" Text="1.0x" VerticalAlignment="Center"/>
                 </StackPanel>
                 <Slider Name="AmplitudeSlider" Minimum="0.1" Maximum="10.0" Value="1.0" 
-                        TickFrequency="0.1" IsSnapToTickEnabled="True" Width="200"/>
+                        TickFrequency="0.1" IsSnapToTickEnabled="True" HorizontalAlignment="Stretch"/>
             </StackPanel>
-            
+
             <!-- 循环播放控制 -->
             <CheckBox Name="LoopCheckBox" Content="循环播放" IsChecked="True" HorizontalAlignment="Center"/>
-            
+
             <!-- 振型选择 -->
-            <StackPanel Orientation="Vertical" Spacing="5">
+            <StackPanel Orientation="Vertical" Spacing="2">
                 <TextBlock Text="振型选择:" FontWeight="SemiBold"/>
-                <ComboBox Name="ModeComboBox" Width="200" HorizontalAlignment="Center">
+                <ComboBox Name="ModeComboBox" HorizontalAlignment="Stretch" MinWidth="140">
                     <ComboBoxItem Content="模态 1 (100 Hz)" Tag="0"/>
                     <ComboBoxItem Content="模态 2 (200 Hz)" Tag="1"/>
                     <ComboBoxItem Content="模态 3 (300 Hz)" Tag="2"/>
                 </ComboBox>
             </StackPanel>
-            
-            <!-- 颜色梯度选择 -->
-            <StackPanel Orientation="Vertical" Spacing="5">
+
+            <!-- 颜色梯度选择（紧凑化） -->
+            <StackPanel Orientation="Vertical" Spacing="2">
                 <TextBlock Text="颜色梯度:" FontWeight="SemiBold"/>
-                
-                <!-- 基础梯度类型选择 -->
-                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
-                    <TextBlock Text="类型:" VerticalAlignment="Center" Width="40"/>
-                    <ComboBox Name="GradientTypeComboBox" Width="180">
+            
+                <!-- 单行布局：类型 + 对称勾选 -->
+                <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch">
+                    <TextBlock Text="类型:" VerticalAlignment="Center" Grid.Column="0"/>
+                    <ComboBox Name="GradientTypeComboBox" MinWidth="120" HorizontalAlignment="Stretch" Grid.Column="1" Margin="6,0,6,0">
                         <ComboBoxItem Content="经典 (蓝→绿→黄→红)" Tag="Classic"/>
                         <ComboBoxItem Content="热力图 (黑→红→黄→白)" Tag="Thermal"/>
                         <ComboBoxItem Content="彩虹 (红→橙→黄→绿→蓝→紫)" Tag="Rainbow"/>
@@ -64,39 +63,28 @@
                         <ComboBoxItem Content="海洋 (深蓝→青→绿→白)" Tag="Ocean"/>
                         <ComboBoxItem Content="火焰 (黑→红→橙→黄→白)" Tag="Fire"/>
                     </ComboBox>
-                </StackPanel>
-                
-                <!-- 对称性选择 -->
-                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
-                    <TextBlock Text="模式:" VerticalAlignment="Center" Width="40"/>
-                    <CheckBox Name="SymmetricCheckBox" Content="对称梯度" IsChecked="False"/>
-                </StackPanel>
+                    <CheckBox Name="SymmetricCheckBox" Content="对称梯度" IsChecked="False" Grid.Column="2" VerticalAlignment="Center"/>
+                </Grid>
             </StackPanel>
+
+            <!-- 梯度条控制（紧凑化） -->
+            <StackPanel Orientation="Vertical" Spacing="2">
+                <TextBlock Text="梯度条:" FontWeight="SemiBold"/>
             
-            <!-- 梯度条控制 -->
-            <StackPanel Orientation="Vertical" Spacing="5">
-                <TextBlock Text="梯度条显示:" FontWeight="SemiBold"/>
-                
-                <!-- 显示/隐藏控制 -->
-                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
-                    <CheckBox Name="GradientBarVisibleCheckBox" Content="显示梯度条" IsChecked="True"/>
-                </StackPanel>
-                
-                <!-- 位置选择 -->
-                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
-                    <TextBlock Text="位置:" VerticalAlignment="Center" Width="40"/>
-                    <ComboBox Name="GradientBarPositionComboBox" Width="120">
+                <WrapPanel HorizontalAlignment="Stretch">
+                    <CheckBox Name="GradientBarVisibleCheckBox" Content="显示梯度条" IsChecked="True" Margin="0,0,8,0"/>
+                    <TextBlock Text="位置:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox Name="GradientBarPositionComboBox" MinWidth="90">
                         <ComboBoxItem Content="左侧" Tag="Left"/>
                         <ComboBoxItem Content="右侧" Tag="Right" IsSelected="True"/>
                     </ComboBox>
-                </StackPanel>
+                </WrapPanel>
             </StackPanel>
-            
+
             <!-- 动画状态显示 -->
-            <StackPanel Orientation="Vertical" Spacing="5">
+            <StackPanel Orientation="Vertical" Spacing="2">
                 <TextBlock Text="动画状态:" FontWeight="SemiBold"/>
-                <TextBlock Name="StatusText" Text="已停止" HorizontalAlignment="Center" 
-                          Foreground="#666" FontStyle="Italic"/>
+                <TextBlock Name="StatusText" Text="已停止" HorizontalAlignment="Center" FontStyle="Italic"/>
             </StackPanel>
         </StackPanel>
     </Border>

@@ -547,14 +547,13 @@ namespace Avalonia3DControl.UI
             var gradientBarLeftRadio = _window.FindControl<RadioButton>("GradientBarLeftRadio");
             var gradientBarRightRadio = _window.FindControl<RadioButton>("GradientBarRightRadio");
             
-            Console.WriteLine($"找到左侧RadioButton: {gradientBarLeftRadio != null}");
-            Console.WriteLine($"找到右侧RadioButton: {gradientBarRightRadio != null}");
+
             
             if (gradientBarLeftRadio != null)
             {
                 gradientBarLeftRadio.IsCheckedChanged += (s, e) =>
                 {
-                    Console.WriteLine($"左侧RadioButton状态变化: {gradientBarLeftRadio.IsChecked}");
+
                     if (gradientBarLeftRadio.IsChecked == true)
                         OnGradientBarPositionChanged(GradientBarPosition.Left);
                 };
@@ -564,7 +563,7 @@ namespace Avalonia3DControl.UI
             {
                 gradientBarRightRadio.IsCheckedChanged += (s, e) =>
                 {
-                    Console.WriteLine($"右侧RadioButton状态变化: {gradientBarRightRadio.IsChecked}");
+
                     if (gradientBarRightRadio.IsChecked == true)
                         OnGradientBarPositionChanged(GradientBarPosition.Right);
                 };

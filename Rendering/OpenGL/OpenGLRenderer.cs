@@ -75,26 +75,25 @@ namespace Avalonia3DControl.Rendering.OpenGL
             CreateDefaultTexture();
             
             // 初始化梯度条
-            Console.WriteLine("开始初始化渲染器中的梯度条...");
+            
             if (_gradientBar == null)
             {
-                Console.WriteLine("创建新的梯度条实例");
+                
                 _gradientBar = new GradientBar();
             }
             else
             {
-                Console.WriteLine("使用现有的梯度条实例");
+                
             }
             
             try
             {
                 _gradientBar.Initialize();
-                Console.WriteLine("渲染器中的梯度条初始化成功");
+
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"渲染器中的梯度条初始化失败: {ex.Message}");
-                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+
             }
             
             _isInitialized = true;
@@ -123,10 +122,9 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 CreateTextureShader();
                 CreateMaterialShader();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"着色器初始化异常: {ex.Message}");
-                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+
                 throw;
             }
         }
@@ -289,12 +287,12 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 // 获取当前视口尺寸
                 int[] viewport = new int[4];
                 GL.GetInteger(GetPName.Viewport, viewport);
-                Console.WriteLine($"调用梯度条前 Viewport: x={viewport[0]}, y={viewport[1]}, w={viewport[2]}, h={viewport[3]}");
+    
                 // 确保原点为(0,0)，避免被之前的小视口偏移影响
                 if (viewport[0] != 0 || viewport[1] != 0)
                 {
                     GL.Viewport(0, 0, viewport[2], viewport[3]);
-                    Console.WriteLine("已将 Viewport 原点重置为(0,0)");
+        
                 }
                 _gradientBar.Render(viewport[2], viewport[3], dpiScale);
             }
@@ -458,13 +456,13 @@ namespace Avalonia3DControl.Rendering.OpenGL
             // 验证模型数据
             if (model?.Vertices == null || model.Vertices.Length == 0)
             {
-                Console.WriteLine("错误: 模型顶点数据无效，无法创建渲染数据");
+
                 return;
             }
             
             if (model.Indices == null || model.Indices.Length == 0)
             {
-                Console.WriteLine("错误: 模型索引数据无效，无法创建渲染数据");
+
                 return;
             }
             
@@ -487,7 +485,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 // 检查缓冲区是否创建成功
                 if (renderData.VAO == 0 || renderData.VBO == 0 || renderData.EBO == 0)
                 {
-                    Console.WriteLine($"错误: 缓冲区创建失败 - VAO: {renderData.VAO}, VBO: {renderData.VBO}, EBO: {renderData.EBO}");
+    
                     return;
                 }
                 
@@ -517,17 +515,17 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 var indexError = GL.GetError();
                 if (indexError != ErrorCode.NoError)
                 {
-                    Console.WriteLine($"创建索引缓冲区时发生OpenGL错误: {indexError}, 数据大小: {indexDataSize}");
+
                 }
                 
                 GL.BindVertexArray(0);
                 
                 _modelRenderData[model] = renderData;
-                Console.WriteLine($"成功创建模型渲染数据 - 顶点: {model.Vertices.Length}, 索引: {model.Indices.Length}");
+    
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"创建模型渲染数据时发生异常: {ex.Message}");
+    
                 
                 // 清理可能已创建的资源
                 if (renderData.VAO != 0) GL.DeleteVertexArray(renderData.VAO);
@@ -550,32 +548,32 @@ namespace Avalonia3DControl.Rendering.OpenGL
             // 检查顶点数组是否有效
             if (model.Vertices.Length == 0)
             {
-                Console.WriteLine("警告: 顶点数组长度为0，跳过更新");
+
                 return;
             }
             
             if (!_modelRenderData.TryGetValue(model, out var renderData))
             {
-                Console.WriteLine("警告: 模型没有渲染数据，跳过更新");
+
                 return; // 如果模型没有渲染数据，跳过更新
             }
             
             // 检查VBO是否有效
             if (renderData.VBO == 0)
             {
-                Console.WriteLine("错误: VBO无效，跳过更新");
+
                 return;
             }
             
             // 检查VBO是否仍然是有效的OpenGL对象
             if (!GL.IsBuffer(renderData.VBO))
             {
-                Console.WriteLine($"错误: VBO {renderData.VBO} 不是有效的OpenGL缓冲区对象，重新创建模型渲染数据");
+                
                 // 重新创建渲染数据
                 CreateModelRenderData(model);
                 if (!_modelRenderData.TryGetValue(model, out renderData) || !GL.IsBuffer(renderData.VBO))
                 {
-                    Console.WriteLine("错误: 重新创建VBO失败");
+                    
                     return;
                 }
             }
@@ -612,7 +610,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 int dataSize = model.Vertices.Length * sizeof(float);
                 if (dataSize <= 0)
                 {
-                    Console.WriteLine($"错误: 数据大小无效: {dataSize}");
+    
                     GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
                     return;
                 }
@@ -623,7 +621,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 // 如果新数据大小超过当前缓冲区大小，重新分配缓冲区
                 if (dataSize > currentBufferSize)
                 {
-                    Console.WriteLine($"缓冲区大小不足，重新分配: 当前 {currentBufferSize} bytes, 需要 {dataSize} bytes");
+
                     GL.BufferData(BufferTarget.ArrayBuffer, dataSize, model.Vertices, BufferUsageHint.DynamicDraw);
                 }
                 else
@@ -639,12 +637,12 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 var error = GL.GetError();
                 if (error != ErrorCode.NoError)
                 {
-                    Console.WriteLine($"更新顶点缓冲区时发生OpenGL错误: {error}, 数据大小: {dataSize}, 顶点数量: {model.Vertices.Length}");
+
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"更新顶点缓冲区时发生异常: {ex.Message}");
+
                 // 确保解绑缓冲区
                 try
                 {
@@ -785,7 +783,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
             ErrorCode error = GL.GetError();
             if (error != ErrorCode.NoError)
             {
-                Console.WriteLine($"OpenGL错误 ({operation}): {error}");
+    
             }
         }
         #endregion
@@ -890,7 +888,7 @@ void main()
         {
             try
             {
-                Console.WriteLine("开始创建材质着色器...");
+    
                 string vertexSource = "#version 100\n" +
                     "precision highp float;\n" +
                     "attribute vec3 aPosition;\n" +
@@ -948,12 +946,11 @@ void main()
                 "}\n";
 
                 _shaderPrograms[ShadingMode.Material] = CompileShaderProgram(vertexSource, fragmentSource);
-                Console.WriteLine("材质着色器创建成功");
+
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"材质着色器创建异常: {ex.Message}");
-                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+
                 throw;
             }
         }
@@ -1286,15 +1283,15 @@ void main()
         /// <param name="position">位置（左侧或右侧）</param>
         public void SetGradientBarPosition(GradientBarPosition position)
         {
-            Console.WriteLine($"设置梯度条位置: {position}");
+
             if (_gradientBar != null)
             {
                 _gradientBar.Position = position;
-                Console.WriteLine($"梯度条位置已更新为: {_gradientBar.Position}");
+
             }
             else
             {
-                Console.WriteLine("梯度条实例为null，无法设置位置");
+
             }
         }
         

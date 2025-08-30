@@ -49,7 +49,7 @@ namespace Avalonia3DControl.UI
                 {
                     _position = value;
                     _verticesNeedUpdate = true;
-                    Console.WriteLine($"梯度条位置已更改为: {value}，标记顶点需要更新");
+    
                 }
             }
         }
@@ -93,26 +93,25 @@ namespace Avalonia3DControl.UI
         {
             if (_isInitialized) return;
 
-            Console.WriteLine("开始初始化梯度条...");
+
             
             try
             {
-                Console.WriteLine("开始创建梯度条着色器...");
+
                 CreateShader();
-                Console.WriteLine("梯度条着色器创建成功");
+
                 
-                Console.WriteLine("开始创建梯度条几何体...");
+
                 CreateGeometry();
-                Console.WriteLine("梯度条几何体创建成功");
+
                 
                 _verticesNeedUpdate = true; // 初始化时需要计算顶点数据
             _isInitialized = true;
-            Console.WriteLine("梯度条初始化完成");
+            
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"梯度条初始化失败: {ex.Message}");
-                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+
                 throw;
             }
         }
@@ -237,29 +236,28 @@ namespace Avalonia3DControl.UI
         /// </summary>
         private int CompileShader(ShaderType type, string source)
         {
-            Console.WriteLine($"开始编译{type}着色器...");
+
             
             int shader = GL.CreateShader(type);
-            Console.WriteLine($"创建着色器对象: {shader}");
+
             
             GL.ShaderSource(shader, source);
-            Console.WriteLine("设置着色器源码完成");
+
             
             GL.CompileShader(shader);
-            Console.WriteLine("编译着色器完成");
+
 
             GL.GetShader(shader, ShaderParameter.CompileStatus, out int success);
-            Console.WriteLine($"编译状态: {success}");
+
             
             if (success == 0)
             {
                 string infoLog = GL.GetShaderInfoLog(shader);
-                Console.WriteLine($"着色器编译失败详细信息: {infoLog}");
-                Console.WriteLine($"着色器源码:\n{source}");
+
                 throw new Exception($"着色器编译失败 ({type}): {infoLog}");
             }
 
-            Console.WriteLine($"{type}着色器编译成功");
+
             return shader;
         }
 
@@ -421,10 +419,9 @@ namespace Avalonia3DControl.UI
                 
                 if (!blendEnabled) GL.Disable(EnableCap.Blend);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"梯度条渲染失败: {ex.Message}");
-                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+
             }
             finally
             {
