@@ -119,6 +119,25 @@
                                      Foreground="#4C566A"/>
                     </StackPanel>
                     
+                    <!-- 投影模式控制 -->
+                    <TextBlock Text="📐 投影模式" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <RadioButton x:Name="Perspective3DRadio" Content="透视投影" 
+                                     GroupName="ProjectionMode" 
+                                     IsChecked="True" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                        <RadioButton x:Name="Orthographic2DRadio" Content="正交投影" 
+                                     GroupName="ProjectionMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
+                    </StackPanel>
+                    
                     <!-- 模型显示控制 -->
                     <TextBlock Text="👁️ 模型显示" 
                                FontSize="14" 

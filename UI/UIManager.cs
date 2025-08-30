@@ -30,6 +30,7 @@ namespace Avalonia3DControl.UI
         {
             SetupShadingModeHandlers();
             SetupRenderModeHandlers();
+            SetupProjectionModeHandlers();
             SetupMaterialHandlers();
             SetupModelSelectionHandlers();
             SetupCoordinateAxesHandler();
@@ -84,6 +85,33 @@ namespace Avalonia3DControl.UI
                             _openGLControl.SetRenderMode(mode);
                     };
                 }
+            }
+        }
+
+        /// <summary>
+        /// 设置投影模式事件处理器
+        /// </summary>
+        private void SetupProjectionModeHandlers()
+        {
+            var perspective3DRadio = _window.FindControl<RadioButton>("Perspective3DRadio");
+            var orthographic2DRadio = _window.FindControl<RadioButton>("Orthographic2DRadio");
+
+            if (perspective3DRadio != null)
+            {
+                perspective3DRadio.IsCheckedChanged += (s, e) =>
+                {
+                    if (perspective3DRadio.IsChecked == true)
+                        _openGLControl.SwitchToPerspective();
+                };
+            }
+
+            if (orthographic2DRadio != null)
+            {
+                orthographic2DRadio.IsCheckedChanged += (s, e) =>
+                {
+                    if (orthographic2DRadio.IsChecked == true)
+                        _openGLControl.SwitchToOrthographic();
+                };
             }
         }
 

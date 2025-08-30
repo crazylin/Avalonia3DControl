@@ -390,6 +390,33 @@ namespace Avalonia3DControl
                 }
             }
         }
+        
+        /// <summary>
+        /// 切换到正交投影模式
+        /// </summary>
+        public void SwitchToOrthographic()
+        {
+            Scene.Camera.SwitchToOrthographic();
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 切换到透视投影模式
+        /// </summary>
+        public void SwitchToPerspective()
+        {
+            Scene.Camera.SwitchToPerspective();
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 获取当前投影模式
+        /// </summary>
+        /// <returns>当前投影模式</returns>
+        public ProjectionMode GetProjectionMode()
+        {
+            return Scene.Camera.Mode;
+        }
         #endregion
 
         #region ICustomHitTest实现
