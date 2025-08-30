@@ -23,7 +23,7 @@ namespace Avalonia3DControl.Core
     /// </summary>
     public class MiniAxes
     {
-        public bool Visible { get; set; } = false;
+        public bool Visible { get; set; } = true;
         public MiniAxesPosition Position { get; set; } = MiniAxesPosition.BottomLeft;
         public Model3D? AxesModel { get; private set; }
         public float Size { get; set; } = 1.2f; // 迷你坐标轴的大小（更短避免截断）

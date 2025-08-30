@@ -49,7 +49,7 @@ namespace Avalonia3DControl.Core.Cameras
             AspectRatio = 1.0f;
             NearPlane = 0.1f;
             FarPlane = 100.0f;
-            Mode = ProjectionMode.Perspective;
+            Mode = ProjectionMode.Orthographic;
             ViewLock = ViewLockMode.None;
             OrthographicSize = 5.0f; // 2D模式下的视野大小
         }

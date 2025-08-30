@@ -94,6 +94,10 @@
                                      GroupName="ShadingMode" 
                                      Margin="0,2" 
                                      Foreground="#4C566A"/>
+                        <RadioButton x:Name="MaterialShadingRadio" Content="材质模式" 
+                                     GroupName="ShadingMode" 
+                                     Margin="0,2" 
+                                     Foreground="#4C566A"/>
                     </StackPanel>
                     
                     <!-- 渲染模式控制 -->
@@ -129,11 +133,11 @@
                     <StackPanel Margin="0,0,0,15">
                         <RadioButton x:Name="Perspective3DRadio" Content="透视投影" 
                                      GroupName="ProjectionMode" 
-                                     IsChecked="True" 
                                      Margin="0,2" 
                                      Foreground="#4C566A"/>
                         <RadioButton x:Name="Orthographic2DRadio" Content="正交投影" 
                                      GroupName="ProjectionMode" 
+                                     IsChecked="True" 
                                      Margin="0,2" 
                                      Foreground="#4C566A"/>
                     </StackPanel>
@@ -209,6 +213,7 @@
                                   Margin="0,2" 
                                   Foreground="#4C566A"/>
                         <CheckBox x:Name="ShowMiniAxesCheckBox" Content="显示迷你坐标轴" 
+                                  IsChecked="True" 
                                   Margin="0,2" 
                                   Foreground="#4C566A"/>
                         
@@ -249,7 +254,70 @@
                                Margin="0,0,0,8" 
                                Foreground="#5E81AC"/>
                     
-                   
+                    <StackPanel Margin="0,0,0,15">
+                        <Button x:Name="PlasticMaterialBtn" Content="塑料材质" 
+                                Margin="0,2" 
+                                Background="#BF616A" 
+                                Foreground="White" 
+                                Padding="8,4"/>
+                        <Button x:Name="MetalMaterialBtn" Content="金属材质" 
+                                Margin="0,2" 
+                                Background="#A3BE8C" 
+                                Foreground="White" 
+                                Padding="8,4"/>
+                        <Button x:Name="GlassMaterialBtn" Content="玻璃材质" 
+                                Margin="0,2" 
+                                Background="#5E81AC" 
+                                Foreground="White" 
+                                Padding="8,4"/>
+                    </StackPanel>
+                    
+                    <!-- 透明度控制 -->
+                    <TextBlock Text="🔍 透明度控制" 
+                               FontSize="14" 
+                               FontWeight="SemiBold" 
+                               Margin="0,0,0,8" 
+                               Foreground="#5E81AC"/>
+                    
+                    <StackPanel Margin="0,0,0,15">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0" 
+                                       Text="透明" 
+                                       FontSize="11" 
+                                       VerticalAlignment="Center" 
+                                       Margin="0,0,8,0" 
+                                       Foreground="#4C566A"/>
+                            
+                            <Slider x:Name="AlphaSlider" 
+                                    Grid.Column="1" 
+                                    Minimum="0.0" 
+                                    Maximum="1.0" 
+                                    Value="1.0" 
+                                    TickFrequency="0.1" 
+                                    IsSnapToTickEnabled="False" 
+                                    Margin="0,2"/>
+                            
+                            <TextBlock Grid.Column="2" 
+                                       Text="不透明" 
+                                       FontSize="11" 
+                                       VerticalAlignment="Center" 
+                                       Margin="8,0,0,0" 
+                                       Foreground="#4C566A"/>
+                        </Grid>
+                        
+                        <TextBlock x:Name="AlphaValueText" 
+                                   Text="透明度: 100%" 
+                                   FontSize="11" 
+                                   HorizontalAlignment="Center" 
+                                   Margin="0,4,0,0" 
+                                   Foreground="#5E81AC"/>
+                    </StackPanel>
                     
                     <!-- 技术特性 -->
                     <TextBlock Text="⚡ 技术特性" 

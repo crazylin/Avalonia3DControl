@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using OpenTK.Mathematics;
 using System;
@@ -34,6 +35,7 @@ namespace Avalonia3DControl.UI
             SetupProjectionModeHandlers();
             SetupViewLockHandlers();
             SetupMaterialHandlers();
+            SetupTransparencyHandlers();
             SetupModelSelectionHandlers();
             SetupCoordinateAxesHandler();
             SetupMiniAxesHandlers();
@@ -47,7 +49,8 @@ namespace Avalonia3DControl.UI
             var shadingModes = new[]
             {
                 ("VertexShadingRadio", ShadingMode.Vertex),
-                ("TextureShadingRadio", ShadingMode.Texture)
+                ("TextureShadingRadio", ShadingMode.Texture),
+                ("MaterialShadingRadio", ShadingMode.Material)
             };
 
             foreach (var (controlName, mode) in shadingModes)
@@ -171,8 +174,8 @@ namespace Avalonia3DControl.UI
         {
             var materials = new (string, Func<Material>)[]
             {
-                ("PlasticMaterialBtn", () => Material.CreatePlastic(new Vector3(0.8f, 0.2f, 0.2f))),
-                ("MetalMaterialBtn", () => Material.CreateMetal(new Vector3(0.2f, 0.8f, 0.2f))),
+                ("PlasticMaterialBtn", () => Material.CreatePlastic(new Vector3(0.9f, 0.9f, 0.9f))),
+                ("MetalMaterialBtn", () => Material.CreateMetal(new Vector3(0.7f, 0.7f, 0.8f))),
                 ("GlassMaterialBtn", () => Material.CreateGlass(new Vector3(0.2f, 0.6f, 0.9f)))
             };
 
@@ -242,6 +245,109 @@ namespace Avalonia3DControl.UI
                 {
                     model.Material = material;
                 }
+                // 强制重绘以显示材质变化
+                _openGLControl.RequestNextFrameRendering();
+            }
+        }
+
+        /// <summary>
+        /// 设置透明度控制事件处理器
+        /// </summary>
+        private void SetupTransparencyHandlers()
+        {
+            var alphaSlider = _window.FindControl<Slider>("AlphaSlider");
+            var alphaValueText = _window.FindControl<TextBlock>("AlphaValueText");
+            
+            if (alphaSlider != null)
+            {
+                alphaSlider.ValueChanged += (s, e) =>
+                {
+                    float alphaValue = (float)alphaSlider.Value;
+                    
+                    // 更新显示文本
+                    if (alphaValueText != null)
+                    {
+                        int percentage = (int)(alphaValue * 100);
+                        alphaValueText.Text = $"透明度: {percentage}%";
+                    }
+                    
+                    // 应用透明度到所有模型
+                    ApplyAlphaToAllModels(alphaValue);
+                };
+            }
+            
+            // 设置材质预设按钮事件
+            SetupMaterialPresetHandlers();
+        }
+        
+        /// <summary>
+        /// 设置材质预设按钮事件处理器
+        /// </summary>
+        private void SetupMaterialPresetHandlers()
+        {
+            var plasticButton = _window.FindControl<Button>("PlasticButton");
+            var metalButton = _window.FindControl<Button>("MetalButton");
+            var glassButton = _window.FindControl<Button>("GlassButton");
+            var alphaSlider = _window.FindControl<Slider>("AlphaSlider");
+            
+            if (plasticButton != null)
+             {
+                 plasticButton.Click += (s, e) =>
+                 {
+                     float alpha = alphaSlider?.Value != null ? (float)alphaSlider.Value : 1.0f;
+                     var color = new Vector3(0.9f, 0.9f, 0.9f); // 白色塑料
+                     var material = Material.CreatePlastic(color, alpha);
+                     ApplyMaterialToAllModels(material);
+                 };
+             }
+             
+             if (metalButton != null)
+             {
+                 metalButton.Click += (s, e) =>
+                 {
+                     float alpha = alphaSlider?.Value != null ? (float)alphaSlider.Value : 1.0f;
+                     var color = new Vector3(0.7f, 0.7f, 0.8f); // 银色金属
+                     var material = Material.CreateMetal(color, alpha);
+                     ApplyMaterialToAllModels(material);
+                 };
+             }
+             
+             if (glassButton != null)
+             {
+                 glassButton.Click += (s, e) =>
+                 {
+                     float alpha = alphaSlider?.Value != null ? (float)alphaSlider.Value : 0.7f;
+                     var color = new Vector3(0.8f, 0.9f, 1.0f); // 淡蓝色玻璃
+                     var material = Material.CreateGlass(color, alpha);
+                     ApplyMaterialToAllModels(material);
+                     
+                     // 更新滑块值以反映玻璃的默认透明度
+                     if (alphaSlider != null)
+                     {
+                         alphaSlider.Value = alpha;
+                     }
+                 };
+             }
+        }
+
+        /// <summary>
+        /// 应用透明度到所有模型
+        /// </summary>
+        /// <param name="alpha">透明度值 (0.0-1.0)</param>
+        private void ApplyAlphaToAllModels(float alpha)
+        {
+            var scene = _openGLControl.Scene;
+            if (scene != null)
+            {
+                foreach (var model in scene.Models)
+                {
+                    if (model.Material != null)
+                    {
+                        model.Material.Alpha = alpha;
+                    }
+                }
+                // 强制重绘以显示透明度变化
+                _openGLControl.RequestNextFrameRendering();
             }
         }
 

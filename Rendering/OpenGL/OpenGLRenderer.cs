@@ -89,8 +89,18 @@ namespace Avalonia3DControl.Rendering.OpenGL
 
         private void InitializeShaders()
         {
-            CreateVertexShader();
-            CreateTextureShader();
+            try
+            {
+                CreateVertexShader();
+                CreateTextureShader();
+                CreateMaterialShader();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"着色器初始化异常: {ex.Message}");
+                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+                throw;
+            }
         }
 
         private void CreateDefaultTexture()
@@ -176,6 +186,11 @@ namespace Avalonia3DControl.Rendering.OpenGL
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             CheckGLError("清除缓冲区后");
             
+            // 启用混合以支持透明度
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            CheckGLError("启用混合后");
+            
             // 设置渲染模式
             SetRenderMode(renderMode);
             
@@ -256,7 +271,75 @@ namespace Avalonia3DControl.Rendering.OpenGL
             var modelMatrix = model.GetModelMatrix();
             SetMatrix(shaderProgram, "model", modelMatrix);
             
-            // 材质属性已移除，不再需要设置
+            // 设置材质属性
+            if (model.Material != null)
+            {
+                // 设置透明度
+                int alphaLocation = GL.GetUniformLocation(shaderProgram, "materialAlpha");
+                if (alphaLocation != -1)
+                {
+                    GL.Uniform1(alphaLocation, model.Material.Alpha);
+                }
+                
+                // 为材质着色器设置材质属性
+                int ambientLocation = GL.GetUniformLocation(shaderProgram, "materialAmbient");
+                if (ambientLocation != -1)
+                {
+                    GL.Uniform3(ambientLocation, model.Material.Ambient.X, model.Material.Ambient.Y, model.Material.Ambient.Z);
+                }
+                
+                int diffuseLocation = GL.GetUniformLocation(shaderProgram, "materialDiffuse");
+                if (diffuseLocation != -1)
+                {
+                    GL.Uniform3(diffuseLocation, model.Material.Diffuse.X, model.Material.Diffuse.Y, model.Material.Diffuse.Z);
+                }
+                
+                int specularLocation = GL.GetUniformLocation(shaderProgram, "materialSpecular");
+                if (specularLocation != -1)
+                {
+                    GL.Uniform3(specularLocation, model.Material.Specular.X, model.Material.Specular.Y, model.Material.Specular.Z);
+                }
+                
+                int shininessLocation = GL.GetUniformLocation(shaderProgram, "materialShininess");
+                if (shininessLocation != -1)
+                {
+                    GL.Uniform1(shininessLocation, model.Material.Shininess);
+                }
+            }
+            else
+            {
+                // 如果没有材质，使用默认值
+                int alphaLocation = GL.GetUniformLocation(shaderProgram, "materialAlpha");
+                if (alphaLocation != -1)
+                {
+                    GL.Uniform1(alphaLocation, 1.0f);
+                }
+                
+                // 为材质着色器设置默认材质属性
+                int ambientLocation = GL.GetUniformLocation(shaderProgram, "materialAmbient");
+                if (ambientLocation != -1)
+                {
+                    GL.Uniform3(ambientLocation, 0.2f, 0.2f, 0.2f);
+                }
+                
+                int diffuseLocation = GL.GetUniformLocation(shaderProgram, "materialDiffuse");
+                if (diffuseLocation != -1)
+                {
+                    GL.Uniform3(diffuseLocation, 0.8f, 0.8f, 0.8f);
+                }
+                
+                int specularLocation = GL.GetUniformLocation(shaderProgram, "materialSpecular");
+                if (specularLocation != -1)
+                {
+                    GL.Uniform3(specularLocation, 1.0f, 1.0f, 1.0f);
+                }
+                
+                int shininessLocation = GL.GetUniformLocation(shaderProgram, "materialShininess");
+                if (shininessLocation != -1)
+                {
+                    GL.Uniform1(shininessLocation, 32.0f);
+                }
+            }
             
             // 绑定VAO和VBO
             GL.BindVertexArray(renderData.VAO);
@@ -488,9 +571,11 @@ void main()
 precision highp float;
 varying vec3 vertexColor;
 
+uniform float materialAlpha;
+
 void main()
 {
-    gl_FragColor = vec4(vertexColor, 1.0);
+    gl_FragColor = vec4(vertexColor, materialAlpha);
 }
 ";
 
@@ -527,6 +612,7 @@ varying vec2 TexCoord;
 
 uniform bool hasTexture;
 uniform sampler2D texture0;
+uniform float materialAlpha;
 
 void main()
 {
@@ -542,14 +628,88 @@ void main()
         textureColor = mix(vec3(0.8, 0.8, 0.8), vec3(0.2, 0.2, 0.2), checker);
     }
     
-    gl_FragColor = vec4(textureColor * Color, 1.0);
+    gl_FragColor = vec4(textureColor * Color, materialAlpha);
 }";
 
             _shaderPrograms[ShadingMode.Texture] = CompileShaderProgram(vertexSource, fragmentSource);
         }
 
+        private void CreateMaterialShader()
+        {
+            try
+            {
+                Console.WriteLine("开始创建材质着色器...");
+                string vertexSource = "#version 100\n" +
+                    "precision highp float;\n" +
+                    "attribute vec3 aPosition;\n" +
+                    "attribute vec3 aColor;\n" +
+                    "uniform mat4 model;\n" +
+                    "uniform mat4 view;\n" +
+                    "uniform mat4 projection;\n" +
+                    "varying vec3 vertexColor;\n" +
+                    "varying vec3 worldPos;\n" +
+                    "varying vec3 normal;\n" +
+                    "void main() {\n" +
+                    "    vec4 worldPosition = model * vec4(aPosition, 1.0);\n" +
+                    "    worldPos = worldPosition.xyz;\n" +
+                    "    normal = normalize(mat3(model) * vec3(0.0, 0.0, 1.0));\n" +
+                    "    gl_Position = projection * view * worldPosition;\n" +
+                    "    vertexColor = aColor;\n" +
+                    "}\n";
+
+
+
+            string fragmentSource = "#version 100\n" +
+                "precision highp float;\n" +
+                "varying vec3 vertexColor;\n" +
+                "varying vec3 worldPos;\n" +
+                "varying vec3 normal;\n" +
+                "uniform vec3 materialAmbient;\n" +
+                "uniform vec3 materialDiffuse;\n" +
+                "uniform vec3 materialSpecular;\n" +
+                "uniform float materialShininess;\n" +
+                "uniform float materialAlpha;\n" +
+                "void main() {\n" +
+                "    vec3 norm = normalize(normal);\n" +
+                "    vec3 lightDir1 = normalize(vec3(1.0, 1.0, 1.0));\n" +
+                "    vec3 lightDir2 = normalize(vec3(-0.5, 0.5, -0.5));\n" +
+                "    vec3 lightColor = vec3(0.9, 0.9, 0.9);\n" +
+                "    vec3 ambientLight = vec3(0.7, 0.7, 0.7);\n" +
+                "    \n" +
+                "    vec3 ambient = ambientLight * materialAmbient;\n" +
+                "    \n" +
+                "    float diff1 = max(dot(norm, lightDir1), 0.0);\n" +
+                "    float diff2 = max(dot(norm, lightDir2), 0.0);\n" +
+                "    vec3 diffuse = (diff1 + diff2 * 0.5) * lightColor * materialDiffuse;\n" +
+                "    \n" +
+                "    \n" +
+                "    // Specular reflection calculation\n" +
+                "    vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));\n" +
+                "    vec3 reflectDir1 = reflect(-lightDir1, norm);\n" +
+                "    vec3 reflectDir2 = reflect(-lightDir2, norm);\n" +
+                "    float spec1 = pow(max(dot(viewDir, reflectDir1), 0.0), max(materialShininess, 1.0));\n" +
+                "    float spec2 = pow(max(dot(viewDir, reflectDir2), 0.0), max(materialShininess, 1.0));\n" +
+                "    vec3 specular = (spec1 + spec2 * 0.5) * lightColor * materialSpecular;\n" +
+                "    \n" +
+                "    vec3 result = ambient + diffuse + specular;\n" +
+                "    gl_FragColor = vec4(result, materialAlpha);\n" +
+                "}\n";
+
+                _shaderPrograms[ShadingMode.Material] = CompileShaderProgram(vertexSource, fragmentSource);
+                Console.WriteLine("材质着色器创建成功");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"材质着色器创建异常: {ex.Message}");
+                Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+                throw;
+            }
+        }
+
         private int CompileShaderProgram(string vertexSource, string fragmentSource)
         {
+            // 调试输出已移除
+            
             // 编译顶点着色器
             int vertexShader = GL.CreateShader(ShaderType.VertexShader);
             GL.ShaderSource(vertexShader, vertexSource);
