@@ -1,0 +1,86 @@
+name: Release builds
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.rid }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: ubuntu-latest
+            rid: linux-arm64
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-latest
+            rid: osx-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8.x
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        working-directory: Avalonia3DControl
+        run: dotnet restore
+
+      - name: Publish (${{ matrix.rid }})
+        working-directory: Avalonia3DControl
+        run: |
+          dotnet publish -c Release -r ${{ matrix.rid }} --self-contained true \
+            -p:PublishSingleFile=true -p:DebugType=None -p:PublishTrimmed=false \
+            -o publish/${{ matrix.rid }}
+
+      - name: Archive zip (${{ matrix.rid }})
+        shell: bash
+        working-directory: Avalonia3DControl
+        run: |
+          cd publish/${{ matrix.rid }}
+          zip -r ../../Avalonia3DControl-${{ matrix.rid }}.zip .
+
+      - name: Upload artifact (${{ matrix.rid }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: Avalonia3DControl-${{ matrix.rid }}.zip
+          path: Avalonia3DControl/Avalonia3DControl-${{ matrix.rid }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Attach assets to GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List downloaded files
+        run: |
+          ls -R dist || true
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/**/Avalonia3DControl-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
