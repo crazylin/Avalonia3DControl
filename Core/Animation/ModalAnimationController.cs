@@ -82,7 +82,7 @@ namespace Avalonia3DControl.Core.Animation
         private float _maxObservedDisplacement = 0.1f; // 跟踪观察到的最大位移
         private float _minObservedDisplacement = -0.1f; // 跟踪观察到的最小位移
         private ColorGradientType _colorGradientType = ColorGradientType.Classic; // 当前颜色梯度类型
-        private const float FRAME_TIME_STEP = 1.0f / 1200.0f; // 固定帧时间步长（1200FPS，一个周期内提供更多逐帧步骤）
+        private const float FRAME_TIME_STEP = 1.0f / 120.0f; // 固定相位步长（每周期120步）
         #endregion
         
         #region 公共属性
@@ -92,7 +92,7 @@ namespace Avalonia3DControl.Core.Animation
         public AnimationState CurrentState => _state;
         
         /// <summary>
-        /// 当前播放时间（秒）
+        /// 当前播放相位（归一化到0-1，一个周期为1.0）
         /// </summary>
         public float CurrentTime
         {
@@ -293,8 +293,23 @@ namespace Avalonia3DControl.Core.Animation
         {
             if (_state == AnimationState.Paused && _modalDataSet?.CurrentMode != null)
             {
-                // 减少一个帧时间步长
-                _pausedTime = Math.Max(0.0f, _pausedTime - FRAME_TIME_STEP);
+                // 减少一个相位步长
+                if (_pausedTime > 0.0f)
+                {
+                    _pausedTime = Math.Max(0.0f, _pausedTime - FRAME_TIME_STEP);
+                }
+                else
+                {
+                    if (_isLooping)
+                    {
+                        // 从周期末尾回绕
+                        _pausedTime = Math.Max(0.0f, 1.0f - FRAME_TIME_STEP);
+                    }
+                    else
+                    {
+                        _pausedTime = 0.0f;
+                    }
+                }
                 
                 // 立即更新顶点显示
                 if (_targetModel != null)
@@ -368,8 +383,8 @@ namespace Avalonia3DControl.Core.Animation
             var currentTime = CurrentTime;
             var modalData = _modalDataSet.CurrentMode;
             
-            // 检查是否需要循环
-            if (currentTime >= 1.0f) // 假设一个周期为1秒
+            // 检查是否需要循环（一个周期对应归一化相位1.0）
+            if (currentTime >= 1.0f)
             {
                 if (_isLooping)
                 {
@@ -405,6 +420,13 @@ namespace Avalonia3DControl.Core.Animation
             if (_targetModel?.Vertices == null || _originalVertices.Length == 0)
                 return;
             
+            // 将归一化相位转换为物理时间，使不同频率下角频率一致：omega * t = 2π * time
+            float timeSeconds = time;
+            if (modalData.Frequency > 0.0f)
+            {
+                timeSeconds = time / modalData.Frequency;
+            }
+            
             var vertices = _targetModel.Vertices;
             
             // 计算所有顶点的位移并更新观察到的范围
@@ -415,7 +437,7 @@ namespace Avalonia3DControl.Core.Animation
             
             foreach (var point in modalData.Points)
             {
-                var displacement = point.GetDisplacement(time, modalData.Frequency);
+                var displacement = point.GetDisplacement(timeSeconds, modalData.Frequency);
                 displacement *= _amplificationFactor;
                 displacements[point.VertexIndex] = displacement;
                 
@@ -461,38 +483,21 @@ namespace Avalonia3DControl.Core.Animation
                     
                     // 根据振动位移更新颜色
                     float zDisplacement = displacement.Z;
-                    float normalizedDisplacement;
                     
-                    // 对于对称梯度，使用基于0点的对称映射
-                    if (IsSymmetricGradient(_colorGradientType))
+                    // 统一归一化到[-1, 1]（以当前帧的最大绝对位移为基准），无论对称/非对称梯度
+                    float normalizedSigned;
+                    if (currentMaxAbsDisplacement > 1e-6f)
                     {
-                        // 对称梯度：每帧重新映射，-1→0, 0→0.5, 1→1
-                        // 使用当前帧的实际最大绝对位移值进行归一化
-                        if (currentMaxAbsDisplacement > 0)
-                        {
-                            // 将位移值归一化到[-1,1]范围，然后映射到[0,1]
-                            float normalizedToRange = zDisplacement / currentMaxAbsDisplacement; // [-1, 1]
-                            normalizedDisplacement = (normalizedToRange + 1.0f) * 0.5f; // [0, 1]，0位移对应0.5
-                        }
-                        else
-                        {
-                            normalizedDisplacement = 0.5f; // 如果没有位移，使用中心值
-                        }
+                        normalizedSigned = Math.Max(-1.0f, Math.Min(1.0f, zDisplacement / currentMaxAbsDisplacement));
                     }
                     else
                     {
-                        // 非对称梯度：使用当前帧的实际范围映射
-                        if (currentMaxDisplacement > currentMinDisplacement)
-                        {
-                            normalizedDisplacement = (zDisplacement - currentMinDisplacement) / (currentMaxDisplacement - currentMinDisplacement);
-                        }
-                        else
-                        {
-                            normalizedDisplacement = 0.5f;
-                        }
+                        normalizedSigned = 0.0f;
                     }
                     
-                    normalizedDisplacement = Math.Max(0.0f, Math.Min(1.0f, normalizedDisplacement)); // 限制在0-1范围内
+                    // 颜色查找仍使用[0,1]，将[-1,1]映射到[0,1]
+                    float normalizedDisplacement = (normalizedSigned + 1.0f) * 0.5f;
+                    normalizedDisplacement = Math.Max(0.0f, Math.Min(1.0f, normalizedDisplacement));
                     
                     // 根据选择的颜色梯度类型计算颜色
                     var color = CalculateGradientColor(normalizedDisplacement, _colorGradientType);

@@ -117,6 +117,10 @@
                         <WrapPanel>
                             <CheckBox x:Name="ShowGradientBarCheckBox" Content="显示梯度条" IsChecked="True"/>
                         </WrapPanel>
+                        <WrapPanel>
+                            <CheckBox x:Name="GradientBarShowTicksCheckBox" Content="显示刻度" IsChecked="True" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="GradientBarNormalizedScaleCheckBox" Content="归一化刻度 (-1~1)" IsChecked="True"/>
+                        </WrapPanel>
                         <TextBlock Text="位置:"/>
                         <WrapPanel>
                             <RadioButton x:Name="GradientBarLeftRadio" Content="左侧" GroupName="GradientBarPosition" Margin="0,0,8,0"/>

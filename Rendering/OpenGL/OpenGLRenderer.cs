@@ -89,11 +89,11 @@ namespace Avalonia3DControl.Rendering.OpenGL
             try
             {
                 _gradientBar.Initialize();
-
+                
             }
             catch (Exception)
             {
-
+                
             }
             
             _isInitialized = true;
@@ -292,7 +292,6 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 if (viewport[0] != 0 || viewport[1] != 0)
                 {
                     GL.Viewport(0, 0, viewport[2], viewport[3]);
-        
                 }
                 _gradientBar.Render(viewport[2], viewport[3], dpiScale);
             }
@@ -1318,6 +1317,22 @@ void main()
             {
                 _gradientBar.MinValue = minValue;
                 _gradientBar.MaxValue = maxValue;
+            }
+        }
+        
+        public void SetGradientBarUseNormalizedScale(bool useNormalized)
+        {
+            if (_gradientBar != null)
+            {
+                _gradientBar.UseNormalizedScale = useNormalized;
+            }
+        }
+        
+        public void SetGradientBarShowTicks(bool show)
+        {
+            if (_gradientBar != null)
+            {
+                _gradientBar.ShowTicks = show;
             }
         }
         

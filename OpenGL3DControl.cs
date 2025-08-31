@@ -576,6 +576,25 @@ namespace Avalonia3DControl
             _renderer?.SetGradientBarType(gradientType);
             RequestNextFrameRendering();
         }
+        
+        /// <summary>
+        /// 设置梯度条是否使用归一化刻度（-1~1），否则显示实际最小最大值
+        /// </summary>
+        public void SetGradientBarUseNormalizedScale(bool useNormalized)
+        {
+            _renderer?.SetGradientBarUseNormalizedScale(useNormalized);
+            RequestNextFrameRendering();
+        }
+
+        /// <summary>
+        /// 设置是否显示梯度条刻度
+        /// </summary>
+        public void SetGradientBarShowTicks(bool show)
+        {
+            _renderer?.SetGradientBarShowTicks(show);
+            RequestNextFrameRendering();
+        }
+
         #endregion
 
         #region ICustomHitTest实现
@@ -584,31 +603,31 @@ namespace Avalonia3DControl
             // 检查点是否在控件边界内
             if (!Bounds.Contains(point))
                 return false;
-            
+
             // 检查控件是否可见和启用
             if (!IsVisible || !IsEnabled)
                 return false;
-            
+
             // 检查控件是否可以接收命中测试
             if (!IsHitTestVisible)
                 return false;
-            
+
             // 考虑DPI缩放的精确命中测试
             var topLevel = TopLevel.GetTopLevel(this);
             var renderScaling = topLevel?.RenderScaling ?? 1.0;
-            
+
             // 转换为像素坐标进行更精确的测试
             var pixelPoint = new Point(
                 point.X * renderScaling,
                 point.Y * renderScaling
             );
-            
+
             var pixelBounds = new Rect(
                 0, 0,
                 Bounds.Width * renderScaling,
                 Bounds.Height * renderScaling
             );
-            
+
             return pixelBounds.Contains(pixelPoint);
         }
         #endregion

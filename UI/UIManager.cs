@@ -544,10 +544,28 @@ namespace Avalonia3DControl.UI
                 };
             }
 
+            // 新增：显示刻度/归一化刻度
+            var gradientBarShowTicksCheckBox = _window.FindControl<CheckBox>("GradientBarShowTicksCheckBox");
+            if (gradientBarShowTicksCheckBox != null)
+            {
+                gradientBarShowTicksCheckBox.IsCheckedChanged += (s, e) =>
+                {
+                    _openGLControl.SetGradientBarShowTicks(gradientBarShowTicksCheckBox.IsChecked == true);
+                };
+            }
+
+            var gradientBarNormalizedScaleCheckBox = _window.FindControl<CheckBox>("GradientBarNormalizedScaleCheckBox");
+            if (gradientBarNormalizedScaleCheckBox != null)
+            {
+                gradientBarNormalizedScaleCheckBox.IsCheckedChanged += (s, e) =>
+                {
+                    _openGLControl.SetGradientBarUseNormalizedScale(gradientBarNormalizedScaleCheckBox.IsChecked == true);
+                };
+            }
+
             var gradientBarLeftRadio = _window.FindControl<RadioButton>("GradientBarLeftRadio");
             var gradientBarRightRadio = _window.FindControl<RadioButton>("GradientBarRightRadio");
             
-
             
             if (gradientBarLeftRadio != null)
             {
