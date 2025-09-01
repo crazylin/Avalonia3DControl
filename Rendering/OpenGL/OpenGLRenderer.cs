@@ -23,6 +23,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
         private int _defaultTexture = 0;
         private bool _isInitialized = false;
         private GradientBar? _gradientBar;
+        private RenderMode _currentRenderMode = RenderMode.Fill;
         #endregion
 
         #region 内部类
@@ -31,6 +32,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
             public int VAO { get; set; }
             public int VBO { get; set; }
             public int EBO { get; set; }
+            public int LineEBO { get; set; }
+            public int LineIndexCount { get; set; }
         }
         #endregion
 
@@ -257,8 +260,11 @@ namespace Avalonia3DControl.Rendering.OpenGL
                     SetMatrix(axesShaderProgram, "projection", projectionMatrix);
                     
                     // 坐标轴始终使用填充模式渲染
-                    GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
+                    SetPolygonModeSafe(PolygonMode.Fill);
+                    var prevMode = _currentRenderMode;
+                    _currentRenderMode = RenderMode.Fill;
                     RenderModel(coordinateAxes, axesShaderProgram);
+                    _currentRenderMode = prevMode;
                     
                     // 恢复原始着色器和渲染模式
                     GL.UseProgram(shaderProgram);
@@ -436,8 +442,43 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 GL.Uniform1(hasTextureLocation, 0); // 暂时设为false，使用程序生成的棋盘格纹理
             }
             
-            // 渲染
-            GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+            // 点模式控制（使顶点着色器能设置 gl_PointSize）
+            int pointModeLoc = GL.GetUniformLocation(shaderProgram, "uPointMode");
+            if (pointModeLoc != -1)
+            {
+                GL.Uniform1(pointModeLoc, _currentRenderMode == RenderMode.Point ? 1 : 0);
+            }
+            int pointSizeLoc = GL.GetUniformLocation(shaderProgram, "uPointSize");
+            if (pointSizeLoc != -1)
+            {
+                GL.Uniform1(pointSizeLoc, 8.0f);
+            }
+            
+            // 按渲染模式绘制
+            switch (_currentRenderMode)
+            {
+                case RenderMode.Line:
+                    if (renderData.LineEBO != 0 && renderData.LineIndexCount > 0)
+                    {
+                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.LineEBO);
+                        GL.DrawElements(PrimitiveType.Lines, renderData.LineIndexCount, DrawElementsType.UnsignedInt, 0);
+                    }
+                    else
+                    {
+                        // 回退到三角形
+                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
+                        GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+                    }
+                    break;
+                case RenderMode.Point:
+                    GL.DrawArrays(PrimitiveType.Points, 0, model.VertexCount);
+                    break;
+                case RenderMode.Fill:
+                default:
+                    GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
+                    GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
+                    break;
+            }
             
             // 清理
             if (positionLocation != -1) GL.DisableVertexAttribArray(positionLocation);
@@ -505,10 +546,37 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 
 
                 
-                // 绑定索引缓冲区
+                // 绑定索引缓冲区（面三角形）
                 GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
                 int indexDataSize = model.Indices.Length * sizeof(uint);
                 GL.BufferData(BufferTarget.ElementArrayBuffer, indexDataSize, model.Indices, BufferUsageHint.StaticDraw);
+                
+                // 生成线框索引缓冲
+                try
+                {
+                    int triCount = model.IndexCount / 3;
+                    if (triCount > 0)
+                    {
+                        var lineIndices = new uint[triCount * 6];
+                        int li = 0;
+                        for (int t = 0; t < triCount; t++)
+                        {
+                            uint a = model.Indices[t * 3 + 0];
+                            uint b = model.Indices[t * 3 + 1];
+                            uint c = model.Indices[t * 3 + 2];
+                            lineIndices[li++] = a; lineIndices[li++] = b;
+                            lineIndices[li++] = b; lineIndices[li++] = c;
+                            lineIndices[li++] = c; lineIndices[li++] = a;
+                        }
+                        renderData.LineEBO = GL.GenBuffer();
+                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.LineEBO);
+                        GL.BufferData(BufferTarget.ElementArrayBuffer, lineIndices.Length * sizeof(uint), lineIndices, BufferUsageHint.StaticDraw);
+                        renderData.LineIndexCount = lineIndices.Length;
+                        // 恢复默认EBO为三角形索引
+                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
+                    }
+                }
+                catch { }
                 
                 // 检查索引缓冲区创建
                 var indexError = GL.GetError();
@@ -530,6 +598,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 if (renderData.VAO != 0) GL.DeleteVertexArray(renderData.VAO);
                 if (renderData.VBO != 0) GL.DeleteBuffer(renderData.VBO);
                 if (renderData.EBO != 0) GL.DeleteBuffer(renderData.EBO);
+                if (renderData.LineEBO != 0) GL.DeleteBuffer(renderData.LineEBO);
             }
         }
         
@@ -670,24 +739,177 @@ namespace Avalonia3DControl.Rendering.OpenGL
         #region 辅助方法
         private void SetRenderMode(RenderMode renderMode)
         {
-            switch (renderMode)
+            // 确保内部渲染模式状态被更新（用于在 RenderModel 中切换绘制路径）
+            _currentRenderMode = renderMode;
+            
+            // 检查OpenGL上下文是否可用
+            try
             {
-                case RenderMode.Fill:
-                    GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
-                    break;
-                case RenderMode.Line:
-                    GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
-                    GL.LineWidth(5.0f); // 增加线条粗细以更好显示动画效果
-                    // 启用线条平滑以获得更好的视觉效果
-                    GL.Enable(EnableCap.LineSmooth);
-                    GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
-                    break;
-                case RenderMode.Point:
-                    GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Point);
-                    GL.PointSize(8.0f); // 增加点的大小以更好显示动画效果
-                    break;
+                var version = GL.GetString(StringName.Version);
+                if (string.IsNullOrEmpty(version))
+                {
+                    System.Diagnostics.Debug.WriteLine("OpenGL context not available, skipping SetRenderMode");
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                System.Diagnostics.Debug.WriteLine("OpenGL context not available, skipping SetRenderMode");
+                return;
+            }
+            
+            // 检查OpenGL版本和扩展支持
+            if (!IsPolygonModeSupported())
+            {
+                System.Diagnostics.Debug.WriteLine("PolygonMode not supported in current OpenGL context, using fallback rendering");
+                SetRenderModeFallback(renderMode);
+                return;
+            }
+
+            try
+            {
+                // 清除之前的OpenGL错误
+                GL.GetError();
+                
+                // 暂时禁用GL.PolygonMode调用以测试是否是崩溃原因
+                 System.Diagnostics.Debug.WriteLine($"SetRenderMode called with {renderMode}, but GL.PolygonMode disabled for testing");
+                 
+                 switch (renderMode)
+                 {
+                     case RenderMode.Fill:
+                         // GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill); // 临时禁用
+                         try { GL.Disable(EnableCap.LineSmooth); } catch { }
+                         break;
+                     case RenderMode.Line:
+                         // GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line); // 临时禁用
+                         GL.LineWidth(5.0f); // 增加线条粗细以更好显示动画效果
+                         // 启用线条平滑以获得更好的视觉效果
+                         try
+                         {
+                             GL.Enable(EnableCap.LineSmooth);
+                             GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
+                         }
+                         catch (Exception ex)
+                         {
+                             System.Diagnostics.Debug.WriteLine($"LineSmooth error: {ex.Message}");
+                         }
+                         break;
+                     case RenderMode.Point:
+                         // GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Point); // 临时禁用
+                         GL.PointSize(8.0f); // 增加点的大小以更好显示动画效果
+                         try { GL.Enable(EnableCap.ProgramPointSize); } catch { }
+                         break;
+                 }
+                
+                // 检查OpenGL错误
+                ErrorCode error = GL.GetError();
+                if (error != ErrorCode.NoError)
+                {
+                    System.Diagnostics.Debug.WriteLine($"OpenGL error after PolygonMode: {error}");
+                    SetRenderModeFallback(renderMode);
+                }
+            }
+            catch (Exception ex)
+            {
+                // GL.PolygonMode在OpenGL Core Profile中不被支持
+                // 在Windows下可能使用Core Profile，而macOS使用兼容性配置文件
+                System.Diagnostics.Debug.WriteLine($"Exception in SetRenderMode: {ex.Message}");
+                SetRenderModeFallback(renderMode);
             }
         }
+        
+        private bool IsPolygonModeSupported()
+        {
+            try
+            {
+                // 检查OpenGL版本
+                string version = GL.GetString(StringName.Version);
+                System.Diagnostics.Debug.WriteLine($"OpenGL Version: {version}");
+                
+                // 在Core Profile中，PolygonMode通常不被支持
+                // 这里我们可以通过检查版本或尝试获取函数指针来判断
+                return true; // 先尝试，如果失败再降级
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
+        private void SetRenderModeFallback(RenderMode renderMode)
+         {
+             // 降级处理：只设置线条和点的属性，不使用PolygonMode
+             _currentRenderMode = renderMode; // 同步内部渲染模式状态
+             switch (renderMode)
+             {
+                 case RenderMode.Line:
+                     GL.LineWidth(5.0f);
+                     try
+                     {
+                         GL.Enable(EnableCap.LineSmooth);
+                         GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
+                     }
+                     catch (Exception ex)
+                     {
+                         System.Diagnostics.Debug.WriteLine($"LineSmooth not supported: {ex.Message}");
+                     }
+                     break;
+                 case RenderMode.Point:
+                     GL.PointSize(8.0f);
+                     try { GL.Enable(EnableCap.ProgramPointSize); } catch { }
+                     break;
+                 case RenderMode.Fill:
+                     // Fill模式是默认的，不需要特殊处理
+                     try { GL.Disable(EnableCap.LineSmooth); } catch { }
+                     break;
+             }
+         }
+         
+         private void SetPolygonModeSafe(PolygonMode mode)
+          {
+              // 检查OpenGL上下文是否可用
+              try
+              {
+                  var version = GL.GetString(StringName.Version);
+                  if (string.IsNullOrEmpty(version))
+                  {
+                      System.Diagnostics.Debug.WriteLine("OpenGL context not available, skipping SetPolygonModeSafe");
+                      return;
+                  }
+              }
+              catch (Exception)
+              {
+                  System.Diagnostics.Debug.WriteLine("OpenGL context not available, skipping SetPolygonModeSafe");
+                  return;
+              }
+              
+              if (!IsPolygonModeSupported())
+              {
+                  System.Diagnostics.Debug.WriteLine($"PolygonMode.{mode} not supported, skipping");
+                  return;
+              }
+             
+             try
+             {
+                 // 清除之前的OpenGL错误
+                  GL.GetError();
+                  
+                  // 临时禁用GL.PolygonMode调用以测试是否是崩溃原因
+                  System.Diagnostics.Debug.WriteLine($"SetPolygonModeSafe called with {mode}, but GL.PolygonMode disabled for testing");
+                  // GL.PolygonMode(TriangleFace.FrontAndBack, mode); // 临时禁用
+                  
+                  // 检查OpenGL错误
+                  ErrorCode error = GL.GetError();
+                  if (error != ErrorCode.NoError)
+                  {
+                      System.Diagnostics.Debug.WriteLine($"OpenGL error after PolygonMode.{mode}: {error}");
+                  }
+             }
+             catch (Exception ex)
+             {
+                 System.Diagnostics.Debug.WriteLine($"Exception in SetPolygonModeSafe({mode}): {ex.Message}");
+             }
+         }
 
         private void SetMatrix(int shaderProgram, string name, Matrix4 matrix)
         {
@@ -805,12 +1027,15 @@ attribute vec3 aColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform bool uPointMode;
+uniform float uPointSize;
 
 varying vec3 vertexColor;
 
 void main()
 {
     gl_Position = projection * view * model * vec4(aPosition, 1.0);
+    if (uPointMode) { gl_PointSize = uPointSize; }
     vertexColor = aColor;
 }
 ";
@@ -842,6 +1067,8 @@ attribute vec3 aColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform bool uPointMode;
+uniform float uPointSize;
 
 varying vec3 Color;
 varying vec2 TexCoord;
@@ -851,6 +1078,7 @@ void main()
     Color = aColor;
     TexCoord = (aPosition.xy + 1.0) * 0.5;
     gl_Position = projection * view * model * vec4(aPosition, 1.0);
+    if (uPointMode) { gl_PointSize = uPointSize; }
 }";
 
             string fragmentSource = @"
@@ -895,6 +1123,8 @@ void main()
                     "uniform mat4 model;\n" +
                     "uniform mat4 view;\n" +
                     "uniform mat4 projection;\n" +
+                    "uniform bool uPointMode;\n" +
+                    "uniform float uPointSize;\n" +
                     "varying vec3 vertexColor;\n" +
                     "varying vec3 worldPos;\n" +
                     "varying vec3 normal;\n" +
@@ -903,6 +1133,7 @@ void main()
                     "    worldPos = worldPosition.xyz;\n" +
                     "    normal = normalize(mat3(model) * vec3(0.0, 0.0, 1.0));\n" +
                     "    gl_Position = projection * view * worldPosition;\n" +
+                    "    if (uPointMode) { gl_PointSize = uPointSize; }\n" +
                     "    vertexColor = aColor;\n" +
                     "}\n";
 
@@ -1018,6 +1249,7 @@ void main()
                 GL.DeleteVertexArray(renderData.VAO);
                 GL.DeleteBuffer(renderData.VBO);
                 GL.DeleteBuffer(renderData.EBO);
+                if (renderData.LineEBO != 0) GL.DeleteBuffer(renderData.LineEBO);
             }
             _modelRenderData.Clear();
             
@@ -1079,6 +1311,9 @@ void main()
             // 也保存当前着色器，确保渲染后能正确恢复
             GL.GetInteger(GetPName.CurrentProgram, out int prevProgram);
             
+            // 同时保存并临时覆盖当前渲染模式，确保迷你坐标轴始终以填充模式绘制
+            var prevRenderMode = _currentRenderMode;
+            
             try
             {
                 GL.Viewport(miniX, miniY, miniViewportSize, miniViewportSize);
@@ -1100,7 +1335,8 @@ void main()
                 SetMatrix(miniAxesShaderProgram, "projection", miniProjection);
             
                 // 强制使用填充模式渲染迷你坐标轴
-                GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
+                SetPolygonModeSafe(PolygonMode.Fill);
+                _currentRenderMode = RenderMode.Fill;
             
                 // 渲染迷你坐标轴模型
                 RenderModel(miniAxes.AxesModel, miniAxesShaderProgram);
@@ -1116,6 +1352,9 @@ void main()
             }
             finally
             {
+                // 先恢复渲染模式
+                _currentRenderMode = prevRenderMode;
+
                 // 恢复原始视口和着色器
                 GL.Viewport(originalViewport[0], originalViewport[1], originalViewport[2], originalViewport[3]);
                 GL.UseProgram(prevProgram);
@@ -1131,14 +1370,16 @@ void main()
         private void RenderAxisLabels(int shaderProgram, Matrix4 view, Matrix4 projection)
         {
             // 设置线条渲染模式，增加线宽使标注更清晰
-            GL.LineWidth(6.0f);
+            GL.LineWidth(8.0f);
             
-            // 标注位置（在坐标轴末端附近）
-            float labelDistance = 0.9f;
+            // 标注位置（放在各轴顶端并略微前移，避免与轴重叠）
+            float labelSize = 0.15f; // 与字母绘制大小保持一致
+            float offsetAlong = labelSize + 0.02f; // 沿轴方向的额外偏移，确保完全在轴尖之外
+            float labelBase = 1.0f; // 轴的顶端（迷你坐标轴模型长度为1）
             Vector3[] labelPositions = {
-                new Vector3(labelDistance, 0, 0), // X标注位置
-                new Vector3(0, labelDistance, 0), // Y标注位置
-                new Vector3(0, 0, labelDistance)  // Z标注位置
+                new Vector3(labelBase + offsetAlong, 0, 0), // X标注位置：轴尖之外
+                new Vector3(0, labelBase + offsetAlong, 0), // Y标注位置：轴尖之外
+                new Vector3(0, 0, labelBase + offsetAlong)  // Z标注位置：轴尖之外
             };
             
             Vector3[] labelColors = {
@@ -1157,22 +1398,175 @@ void main()
                 Matrix4 labelModel = Matrix4.CreateTranslation(position);
                 SetMatrix(shaderProgram, "model", labelModel);
                 
-                // 根据轴绘制对应的字母
+                // 根据轴绘制对应的字母（使用填充三角形）
                 switch (i)
                 {
                     case 0: // X
-                        DrawLetterX(color);
+                        DrawFilledLetterX(color);
                         break;
                     case 1: // Y
-                        DrawLetterY(color);
+                        DrawFilledLetterY(color);
                         break;
                     case 2: // Z
-                        DrawLetterZ(color);
+                        DrawFilledLetterZ(color);
                         break;
                 }
             }
             
             GL.LineWidth(1.0f); // 恢复默认线宽
+        }
+        
+        /// <summary>
+        /// 绘制填充字母X（使用三角形）
+        /// </summary>
+        private void DrawFilledLetterX(Vector3 color)
+        {
+            float size = 0.12f;
+            float width = 0.03f; // 笔画宽度
+            
+            // X字母由两个交叉的矩形组成，每个矩形用两个三角形绘制
+            float[] vertices = {
+                // 第一条对角线的矩形（左上到右下）
+                // 三角形1
+                -size-width, size, 0, color.X, color.Y, color.Z,
+                -size+width, size, 0, color.X, color.Y, color.Z,
+                size-width, -size, 0, color.X, color.Y, color.Z,
+                // 三角形2
+                -size+width, size, 0, color.X, color.Y, color.Z,
+                size+width, -size, 0, color.X, color.Y, color.Z,
+                size-width, -size, 0, color.X, color.Y, color.Z,
+                
+                // 第二条对角线的矩形（右上到左下）
+                // 三角形3
+                size-width, size, 0, color.X, color.Y, color.Z,
+                size+width, size, 0, color.X, color.Y, color.Z,
+                -size+width, -size, 0, color.X, color.Y, color.Z,
+                // 三角形4
+                size+width, size, 0, color.X, color.Y, color.Z,
+                -width, width, 0, color.X, color.Y, color.Z,
+                width, width, 0, color.X, color.Y, color.Z,
+                
+                // 中心到下方的竖线
+                // 三角形5
+                -width, width, 0, color.X, color.Y, color.Z,
+                width, width, 0, color.X, color.Y, color.Z,
+                -width, -size, 0, color.X, color.Y, color.Z,
+                // 三角形6
+                width, width, 0, color.X, color.Y, color.Z,
+                width, -size, 0, color.X, color.Y, color.Z,
+                -width, -size, 0, color.X, color.Y, color.Z
+            };
+            DrawTriangles(vertices, 18);
+        }
+        
+        /// <summary>
+        /// 绘制填充字母Y（使用三角形）
+        /// </summary>
+        private void DrawFilledLetterY(Vector3 color)
+        {
+            float size = 0.12f;
+            float width = 0.03f; // 笔画宽度
+            
+            float[] vertices = {
+                // 左上分支
+                // 三角形1
+                -size-width, size, 0, color.X, color.Y, color.Z,
+                -size+width, size, 0, color.X, color.Y, color.Z,
+                -width, width, 0, color.X, color.Y, color.Z,
+                // 三角形2
+                -size+width, size, 0, color.X, color.Y, color.Z,
+                width, width, 0, color.X, color.Y, color.Z,
+                -width, width, 0, color.X, color.Y, color.Z,
+                
+                // 右上分支
+                // 三角形3
+                size-width, size, 0, color.X, color.Y, color.Z,
+                size+width, size, 0, color.X, color.Y, color.Z,
+                width, width, 0, color.X, color.Y, color.Z,
+                // 三角形4
+                size+width, size, 0, color.X, color.Y, color.Z,
+                -width, width, 0, color.X, color.Y, color.Z,
+                width, width, 0, color.X, color.Y, color.Z,
+                
+                // 中心到下方的竖线
+                // 三角形5
+                -width, width, 0, color.X, color.Y, color.Z,
+                width, width, 0, color.X, color.Y, color.Z,
+                -width, -size, 0, color.X, color.Y, color.Z,
+                // 三角形6
+                width, width, 0, color.X, color.Y, color.Z,
+                width, -size, 0, color.X, color.Y, color.Z,
+                -width, -size, 0, color.X, color.Y, color.Z
+            };
+            DrawTriangles(vertices, 18);
+        }
+        
+        /// <summary>
+        /// 绘制填充字母Z（使用三角形）
+        /// </summary>
+        private void DrawFilledLetterZ(Vector3 color)
+        {
+            float size = 0.18f;
+            float width = 0.05f; // 笔画宽度（更粗）
+            
+            float[] vertices = {
+                // 上横线
+                // 三角形1
+                -size, size, 0, color.X, color.Y, color.Z,
+                size, size, 0, color.X, color.Y, color.Z,
+                -size, size-width, 0, color.X, color.Y, color.Z,
+                // 三角形2
+                size, size, 0, color.X, color.Y, color.Z,
+                size, size-width, 0, color.X, color.Y, color.Z,
+                -size, size-width, 0, color.X, color.Y, color.Z,
+                
+                // 下横线
+                // 三角形3
+                -size, -size+width, 0, color.X, color.Y, color.Z,
+                size, -size+width, 0, color.X, color.Y, color.Z,
+                -size, -size, 0, color.X, color.Y, color.Z,
+                size, -size+width, 0, color.X, color.Y, color.Z,
+                size, -size, 0, color.X, color.Y, color.Z,
+                -size, -size, 0, color.X, color.Y, color.Z,
+                
+                // 对角线（从右上到左下）
+                // 三角形5
+                size-width, size-width, 0, color.X, color.Y, color.Z,
+                size, size-width, 0, color.X, color.Y, color.Z,
+                -size, -size+width, 0, color.X, color.Y, color.Z,
+                size, size-width, 0, color.X, color.Y, color.Z,
+                -size+width, -size+width, 0, color.X, color.Y, color.Z,
+                -size, -size+width, 0, color.X, color.Y, color.Z
+            };
+            DrawTriangles(vertices, 18);
+        }
+        
+        /// <summary>
+        /// 绘制三角形
+        /// </summary>
+        private void DrawTriangles(float[] vertices, int vertexCount)
+        {
+            // 创建临时VAO和VBO
+            uint vao = (uint)GL.GenVertexArray();
+            uint vbo = (uint)GL.GenBuffer();
+            
+            GL.BindVertexArray(vao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
+            
+            // 设置顶点属性
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+            GL.EnableVertexAttribArray(0);
+            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+            GL.EnableVertexAttribArray(1);
+            
+            // 绘制三角形
+            GL.DrawArrays(PrimitiveType.Triangles, 0, vertexCount);
+            
+            // 清理
+            GL.BindVertexArray(0);
+            GL.DeleteVertexArray(vao);
+            GL.DeleteBuffer(vbo);
         }
         
         /// <summary>
@@ -1191,48 +1585,6 @@ void main()
             };
             
             DrawLines(vertices, 4);
-        }
-        
-        /// <summary>
-        /// 绘制字母Y
-        /// </summary>
-        private void DrawLetterY(Vector3 color)
-        {
-            float size = 0.15f;
-            float[] vertices = {
-                // 左上到中心
-                -size,  size, 0, color.X, color.Y, color.Z,
-                    0,     0, 0, color.X, color.Y, color.Z,
-                // 右上到中心
-                 size,  size, 0, color.X, color.Y, color.Z,
-                    0,     0, 0, color.X, color.Y, color.Z,
-                // 中心到下方
-                    0,     0, 0, color.X, color.Y, color.Z,
-                    0, -size, 0, color.X, color.Y, color.Z
-            };
-            
-            DrawLines(vertices, 6);
-        }
-        
-        /// <summary>
-        /// 绘制字母Z
-        /// </summary>
-        private void DrawLetterZ(Vector3 color)
-        {
-            float size = 0.15f;
-            float[] vertices = {
-                // 上横线
-                -size,  size, 0, color.X, color.Y, color.Z,
-                 size,  size, 0, color.X, color.Y, color.Z,
-                // 对角线
-                 size,  size, 0, color.X, color.Y, color.Z,
-                -size, -size, 0, color.X, color.Y, color.Z,
-                // 下横线
-                -size, -size, 0, color.X, color.Y, color.Z,
-                 size, -size, 0, color.X, color.Y, color.Z
-            };
-            
-            DrawLines(vertices, 6);
         }
         
         /// <summary>
@@ -1381,8 +1733,7 @@ void main()
                 _defaultTexture = 0;
             }
             
-            // 清理梯度条
-            _gradientBar?.Dispose();
+            _isInitialized = false;
         }
         #endregion
     }

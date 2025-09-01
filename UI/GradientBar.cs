@@ -3,6 +3,7 @@ using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
 using Avalonia3DControl.Core.Animation;
+using System.IO;
 
 namespace Avalonia3DControl.UI
 {
@@ -35,7 +36,15 @@ namespace Avalonia3DControl.UI
         private bool _lineResourcesCreated = false;
         private float _lastLeft, _lastRight, _lastTop, _lastBottom;
         
-        // 日志已移除
+        // 统一日志：控制台 + 文件
+        private static readonly object _logLock = new object();
+        private static readonly string _logPath = Path.Combine(AppContext.BaseDirectory, "gradientbar.log");
+        private static void Log(string msg)
+        {
+            var line = $"[{DateTime.Now:HH:mm:ss.fff}] [GradientBar] {msg}";
+            try { Console.WriteLine(line); } catch { }
+            try { lock (_logLock) { File.AppendAllText(_logPath, line + Environment.NewLine); } } catch { }
+        }
         #endregion
 
         #region 公共属性
@@ -113,17 +122,45 @@ namespace Avalonia3DControl.UI
         /// </summary>
         public void Initialize()
         {
-            if (_isInitialized) return;
+            if (_isInitialized) { Log("Initialize() skipped: already initialized"); return; }
 
             try
             {
+                // 检查OpenGL上下文是否可用
+                try
+                {
+                    Log("Querying GL Version...");
+                    var version = GL.GetString(StringName.Version);
+                    Log($"GL Version='{version}'");
+                    if (string.IsNullOrEmpty(version))
+                    {
+                        Log("GL Version empty, abort initialization");
+                        _isInitialized = false;
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"Exception when querying GL Version: {ex.Message}");
+                    _isInitialized = false;
+                    return;
+                }
+                
+                Log("Creating gradient shaders...");
                 CreateShader();
+                Log("Creating geometry buffers...");
                 CreateGeometry();
-                if (!_lineResourcesCreated) CreateLineResources();
+                if (!_lineResourcesCreated)
+                {
+                    Log("Creating line resources for ticks...");
+                    CreateLineResources();
+                }
                 _isInitialized = true;
+                Log("Initialize() success");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Log($"Initialize() failed: {ex.Message}");
                 _isInitialized = false;
             }
         }
@@ -132,14 +169,15 @@ namespace Avalonia3DControl.UI
         {
             // 创建线条着色器
             string vertexSource =
-                "#version 330 core\n" +
+                "#version 300 es\n" +
                 "layout(location = 0) in vec2 aPosition;\n" +
                 "void main() {\n" +
                 "    gl_Position = vec4(aPosition.xy, 0.0, 1.0);\n" +
                 "}\n";
 
             string fragmentSource =
-                "#version 330 core\n" +
+                "#version 300 es\n" +
+                "precision mediump float;\n" +
                 "uniform vec3 uColor;\n" +
                 "out vec4 FragColor;\n" +
                 "void main() {\n" +
@@ -180,7 +218,7 @@ namespace Avalonia3DControl.UI
         {
             // 顶点着色器
             string vertexSource =
-                "#version 330 core\n" +
+                "#version 300 es\n" +
                 "layout(location = 0) in vec3 aPosition;\n" +
                 "layout(location = 1) in vec2 aTexCoord;\n" +
                 "out vec2 TexCoord;\n" +
@@ -191,7 +229,8 @@ namespace Avalonia3DControl.UI
 
             // 片段着色器
             string fragmentSource =
-                "#version 330 core\n" +
+                "#version 300 es\n" +
+                "precision mediump float;\n" +
                 "in vec2 TexCoord;\n" +
                 "out vec4 FragColor;\n" +
                 "uniform int gradientType;\n" +
@@ -366,11 +405,15 @@ namespace Avalonia3DControl.UI
         {
             if (!_isInitialized)
             {
-                return;
+                Log("Not initialized. Try lazy Initialize() in Render...");
+                try { Initialize(); } catch (Exception ex) { Log($"Lazy Initialize() threw: {ex.Message}"); return; }
+                if (!_isInitialized) { Log("Lazy Initialize() did not mark initialized. Skip render."); return; }
+                Log("Lazy Initialize() succeeded. Continue render.");
             }
             
             if (!IsVisible)
             {
+                Log("IsVisible == false. Skip render.");
                 return;
             }
             
@@ -380,6 +423,7 @@ namespace Avalonia3DControl.UI
             bool viewportOverridden = prevViewport[0] != 0 || prevViewport[1] != 0 || prevViewport[2] != viewportWidth || prevViewport[3] != viewportHeight;
             if (viewportOverridden)
             {
+                Log($"Override viewport {prevViewport[0]},{prevViewport[1]},{prevViewport[2]},{prevViewport[3]} -> 0,0,{viewportWidth},{viewportHeight}");
                 GL.Viewport(0, 0, viewportWidth, viewportHeight);
             }
 
@@ -390,12 +434,13 @@ namespace Avalonia3DControl.UI
                 GL.GetInteger(GetPName.VertexArrayBinding, out int currentVAO);
                 bool depthTestEnabled = GL.IsEnabled(EnableCap.DepthTest);
                 bool blendEnabled = GL.IsEnabled(EnableCap.Blend);
+                Log($"State before: program={currentProgram}, vao={currentVAO}, depthTest={depthTestEnabled}, blend={blendEnabled}");
 
                 // 设置渲染状态 - 确保梯度条在最前面
                 GL.Disable(EnableCap.DepthTest);
                 GL.Enable(EnableCap.Blend);
                 GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-                GL.Clear(ClearBufferMask.DepthBufferBit); // 清除深度缓冲确保在最前面
+                // GL.Clear(ClearBufferMask.DepthBufferBit);
 
                 // 使用梯度条着色器
                 GL.UseProgram(_shaderProgram);
@@ -428,64 +473,77 @@ namespace Avalonia3DControl.UI
                     right = 1.0f - offsetX;
                     left = right - barWidth;
                 }
+                // 垂直方向改为居中显示
+                float centerY = 0.0f;
+                float halfHeight = barHeight * 0.7f;
+                float top = centerY + halfHeight;
+                float bottom = centerY - halfHeight;
 
-                float bottom = -barHeight * 0.5f;
-                float top = barHeight * 0.5f;
-                _lastLeft = left; _lastRight = right; _lastTop = top; _lastBottom = bottom;
+                Log($"Computed rect: L={left:F3}, R={right:F3}, T={top:F3}, B={bottom:F3}, scale={scale:F2}, pos={Position}");
 
-                // 更新顶点数据（每帧根据视口与DPI计算，避免初始为全屏顶点）
+                // 更新梯度条矩形的顶点数据
+                float[] vertices = new float[
+                    5 * 4
+                ]
                 {
-                    // 更新顶点数据
-                    float texWidth = Math.Min(barWidth * 50.0f, 1.0f); // 限制最大为1.0
-                    float[] vertices = {
-                        left,  top,    0.0f,  0.0f, 1.0f,     // 左上
-                        left,  bottom, 0.0f,  0.0f, 0.0f,     // 左下
-                        right, bottom, 0.0f,  texWidth, 0.0f, // 右下
-                        right, top,    0.0f,  texWidth, 1.0f  // 右上
-                    };
-                    
-                    // 更新VBO
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, vertices.Length * sizeof(float), vertices);
-                }
+                    left,  top,    0.0f,  0.0f, 1.0f,
+                    left,  bottom, 0.0f,  0.0f, 0.0f,
+                    right, bottom, 0.0f,  1.0f, 0.0f,
+                    right, top,    0.0f,  1.0f, 1.0f
+                };
+                uint[] indices = new uint[] { 0, 1, 2, 2, 3, 0 };
 
-                // 绑定VAO并渲染梯度条矩形
+                // 绑定并更新缓冲区数据
                 GL.BindVertexArray(_vao);
-                GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, 0);
-                GL.BindVertexArray(0);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.DynamicDraw);
+                GL.BindBuffer(BufferTarget.ElementArrayBuffer, _ebo);
+                GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Length * sizeof(uint), indices, BufferUsageHint.DynamicDraw);
 
-                // 渲染刻度和标签
+                // 绘制梯度条矩形
+                GL.DrawElements(PrimitiveType.Triangles, indices.Length, DrawElementsType.UnsignedInt, 0);
+                Log("Gradient quad drawn");
+
+                // 记录位置用于刻度线/文字
+                _lastLeft = left;
+                _lastRight = right;
+                _lastTop = top;
+                _lastBottom = bottom;
+
+                // 绘制刻度线/标签
                 if (ShowTicks)
                 {
+                    Log($"Render ticks: _lineResourcesCreated={_lineResourcesCreated}, TickCount={TickCount}");
                     RenderTicksAndLabels();
                 }
 
                 // 恢复OpenGL状态
+                if (depthTestEnabled) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
+                if (!blendEnabled) GL.Disable(EnableCap.Blend);
                 GL.UseProgram(currentProgram);
                 GL.BindVertexArray(currentVAO);
                 
-                if (depthTestEnabled) GL.Enable(EnableCap.DepthTest);
-                else GL.Disable(EnableCap.DepthTest);
-                
-                if (!blendEnabled) GL.Disable(EnableCap.Blend);
+                var err = GL.GetError();
+                if (err != ErrorCode.NoError) Log($"GL.GetError -> {err}");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // 静默处理渲染异常
+                Log($"Render() exception: {ex.Message}");
             }
             finally
             {
-                // 恢复之前的视口（若被覆盖）
+                // 恢复视口
                 if (viewportOverridden)
                 {
                     GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+                    Log("Viewport restored");
                 }
             }
         }
 
         private void RenderTicksAndLabels()
         {
-            if (!_lineResourcesCreated) return;
+            if (!_lineResourcesCreated) { Log("RenderTicksAndLabels skipped: _lineResourcesCreated=false"); return; }
 
             // 计算刻度参数
             float barWidth = _lastRight - _lastLeft;
@@ -549,13 +607,18 @@ namespace Avalonia3DControl.UI
             {
                 GL.UseProgram(_lineShaderProgram);
                 int colorLoc = GL.GetUniformLocation(_lineShaderProgram, "uColor");
-                GL.Uniform3(colorLoc, tickColor);
+                GL.Uniform3(colorLoc, new Vector3(1f,1f,1f));
 
                 GL.BindVertexArray(_lineVao);
                 GL.BindBuffer(BufferTarget.ArrayBuffer, _lineVbo);
                 GL.BufferData(BufferTarget.ArrayBuffer, lineVerts.Count * sizeof(float), lineVerts.ToArray(), BufferUsageHint.DynamicDraw);
                 GL.DrawArrays(PrimitiveType.Lines, 0, lineVerts.Count / 2);
                 GL.BindVertexArray(0);
+                Log($"Ticks+labels drawn: vertices={lineVerts.Count}");
+            }
+            else
+            {
+                Log("No tick vertices generated");
             }
         }
 

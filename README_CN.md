@@ -147,3 +147,11 @@ Avalonia3DControl/
 ---
 
 *English documentation available at [README.md](README.md)*
+
+
+## 渲染模式兼容与迷你坐标轴优化（2025-01）
+
+- 坐标轴与迷你坐标轴渲染解耦：无论全局渲染模式（面/线/点）如何切换，坐标轴与迷你坐标轴始终以 Fill 模式稳定渲染。实现方式为在渲染前临时覆盖当前渲染模式，渲染完成后恢复，确保不影响主模型渲染流程（参见 <mcfile name="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs"></mcfile> 中的 <mcsymbol name="RenderSceneWithAxes" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="201" type="function"></mcsymbol> 与 <mcsymbol name="RenderMiniAxes" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="1277" type="function"></mcsymbol>）。
+- 迷你坐标轴 XYZ 标签改为填充字体：用三角形绘制“实心”字母（X/Y/Z），可读性更强。字母大小、笔画宽度与线宽均已调优，并使笔画宽度随尺寸自适应，保证在不同 DPI/视口下表现稳定（参见 <mcsymbol name="RenderAxisLabels" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="1369" type="function"></mcsymbol>、<mcsymbol name="DrawFilledLetterX" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="1419" type="function"></mcsymbol>、<mcsymbol name="DrawFilledLetterY" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="1453" type="function"></mcsymbol>、<mcsymbol name="DrawFilledLetterZ" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="1496" type="function"></mcsymbol>）。
+- 标签位置外移：将 XYZ 标签定位在各轴尖端之外，并增加轴向偏移量，避免与轴重叠，视觉更清晰。
+- 通用线框/点模式兼容：在 Windows Core Profile 下禁用直接使用 GL.PolygonMode，改为通过线宽、点大小（包含 ProgramPointSize）等手段实现近似效果，避免崩溃；并提供安全封装方法以统一处理（参见 <mcsymbol name="SetRenderMode" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="763" type="function"></mcsymbol> 与 <mcsymbol name="SetPolygonModeSafe" filename="OpenGLRenderer.cs" path="Rendering/OpenGL/OpenGLRenderer.cs" startline="829" type="function"></mcsymbol>，以及文档 <mcfile name="OPENGL_FIX_README.md" path="OPENGL_FIX_README.md"></mcfile>）。
