@@ -15,6 +15,8 @@ namespace Avalonia3DControl.Core.Models
         public Vector3 Rotation { get; set; }
         public Vector3 Scale { get; set; }
         public Vector3 Color { get; set; }
+        public float Alpha { get; set; }
+        public int TextureId { get; set; }
         public Material Material { get; set; }
         public bool Visible { get; set; }
         public string Name { get; set; }
@@ -52,6 +54,8 @@ namespace Avalonia3DControl.Core.Models
             Rotation = Vector3.Zero;
             Scale = Vector3.One;
             Color = Vector3.One;
+            Alpha = 1.0f;
+            TextureId = 0;
             Material = new Material();
             Visible = true;
             Name = "Model";
@@ -112,6 +116,15 @@ namespace Avalonia3DControl.Core.Models
         {
             VerticesNeedUpdate = true;
             RenderRequested?.Invoke();
+        }
+
+        /// <summary>
+        /// 获取顶点数据
+        /// </summary>
+        /// <returns>顶点数据数组</returns>
+        public virtual float[] GetVertexData()
+        {
+            return Vertices;
         }
 
         public virtual Matrix4 GetModelMatrix()

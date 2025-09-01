@@ -19,30 +19,19 @@ namespace Avalonia3DControl.Rendering.OpenGL
     public class OpenGLRenderer : IDisposable
     {
         #region 私有字段
-        private Dictionary<Model3D, ModelRenderData> _modelRenderData;
-        private Dictionary<ShadingMode, int> _shaderPrograms;
+        private ModelRenderer _modelRenderer;
+        private ShaderManager _shaderManager;
+        private SceneRenderer _sceneRenderer;
         private int _defaultTexture = 0;
         private bool _isInitialized = false;
         private GradientBar? _gradientBar;
         private RenderMode _currentRenderMode = RenderMode.Fill;
         #endregion
 
-        #region 内部类
-        private class ModelRenderData
-        {
-            public int VAO { get; set; }
-            public int VBO { get; set; }
-            public int EBO { get; set; }
-            public int LineEBO { get; set; }
-            public int LineIndexCount { get; set; }
-        }
-        #endregion
-
         #region 构造函数
         public OpenGLRenderer()
         {
-            _modelRenderData = new Dictionary<Model3D, ModelRenderData>();
-            _shaderPrograms = new Dictionary<ShadingMode, int>();
+            _shaderManager = new ShaderManager();
             _gradientBar = new GradientBar();
         }
         #endregion
@@ -56,51 +45,74 @@ namespace Avalonia3DControl.Rendering.OpenGL
         {
             if (_isInitialized) return;
             
-            // 初始化OpenTK绑定
             try
             {
-                var context = new AvaloniaGLInterface(gl);
-                OpenTK.Graphics.OpenGL4.GL.LoadBindings(context);
+                // 1. 加载OpenGL绑定
+                LoadOpenGLBindings(gl);
                 
-                // 检查OpenGL上下文是否可用
-                var version = GL.GetString(StringName.Version);
-                if (string.IsNullOrEmpty(version))
-                {
-                    throw new InvalidOperationException("OpenGL context is not available");
-                }
+                // 2. 配置OpenGL状态
+                ConfigureOpenGLState();
+                
+                // 3. 初始化资源
+                InitializeResources();
+                
+                _isInitialized = true;
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException("Failed to initialize OpenGL context: " + ex.Message, ex);
+                throw new InvalidOperationException($"OpenGL渲染器初始化失败: {ex.Message}", ex);
             }
+        }
+        
+        /// <summary>
+        /// 加载OpenGL绑定
+        /// </summary>
+        /// <param name="gl">Avalonia OpenGL接口</param>
+        private void LoadOpenGLBindings(Avalonia.OpenGL.GlInterface gl)
+        {
+            var context = new AvaloniaGLInterface(gl);
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(context);
             
-            ConfigureOpenGLState();
+            // 验证OpenGL上下文
+            var version = GL.GetString(StringName.Version);
+            if (string.IsNullOrEmpty(version))
+            {
+                throw new InvalidOperationException("OpenGL上下文不可用");
+            }
+        }
+        
+        /// <summary>
+        /// 初始化所有资源
+        /// </summary>
+        private void InitializeResources()
+        {
+            // 初始化着色器
             InitializeShaders();
+            
+            // 创建默认纹理
             CreateDefaultTexture();
             
-            // 初始化梯度条
+            // 初始化模型渲染器
+            _modelRenderer = new ModelRenderer(_defaultTexture);
             
+            // 初始化场景渲染器
+            _sceneRenderer = new SceneRenderer(_shaderManager, _modelRenderer, _gradientBar);
+            
+            // 初始化梯度条
+            InitializeGradientBar();
+        }
+        
+        /// <summary>
+        /// 初始化梯度条
+        /// </summary>
+        private void InitializeGradientBar()
+        {
             if (_gradientBar == null)
             {
-                
                 _gradientBar = new GradientBar();
             }
-            else
-            {
-                
-            }
             
-            try
-            {
-                _gradientBar.Initialize();
-                
-            }
-            catch (Exception)
-            {
-                
-            }
-            
-            _isInitialized = true;
+            _gradientBar.Initialize();
         }
 
         private void ConfigureOpenGLState()
@@ -118,19 +130,12 @@ namespace Avalonia3DControl.Rendering.OpenGL
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         }
 
+        /// <summary>
+        /// 初始化着色器
+        /// </summary>
         private void InitializeShaders()
         {
-            try
-            {
-                CreateVertexShader();
-                CreateTextureShader();
-                CreateMaterialShader();
-            }
-            catch (Exception)
-            {
-
-                throw;
-            }
+            _shaderManager.Initialize();
         }
 
         private void CreateDefaultTexture()
@@ -171,7 +176,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
             SetRenderMode(renderMode);
             
             // 获取着色器程序
-            if (!_shaderPrograms.TryGetValue(shadingMode, out int shaderProgram))
+            int shaderProgram = _shaderManager.GetShaderProgram(shadingMode);
+            if (shaderProgram == 0)
             {
                 return; // 如果着色器不存在，跳过渲染
             }
@@ -182,10 +188,9 @@ namespace Avalonia3DControl.Rendering.OpenGL
             var viewMatrix = camera.GetViewMatrix();
             var projectionMatrix = camera.GetProjectionMatrix();
             
+            // Set view and projection matrices
             SetMatrix(shaderProgram, "view", viewMatrix);
             SetMatrix(shaderProgram, "projection", projectionMatrix);
-            
-            // 光照已移除，不再需要设置
             
             // 渲染所有模型
             foreach (var model in models)
@@ -207,103 +212,13 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// <param name="dpiScale">DPI缩放比例</param>
         public void RenderSceneWithAxes(Camera camera, List<Model3D> models, List<Light> lights, Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode, Model3D? coordinateAxes = null, MiniAxes? miniAxes = null, double dpiScale = 1.0)
         {
-            if (!_isInitialized) 
+            if (!_isInitialized || _sceneRenderer == null) 
             {
                 return;
             }
             
-            // 更新所有模型的动画
-            UpdateAnimations(models);
-            
-            // 清除缓冲区
-            CheckGLError("清除缓冲区前");
-            GL.ClearColor(backgroundColor.X, backgroundColor.Y, backgroundColor.Z, 1.0f);
-            CheckGLError("设置清除颜色后");
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            CheckGLError("清除缓冲区后");
-            
-            // 启用混合以支持透明度
-            GL.Enable(EnableCap.Blend);
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            CheckGLError("启用混合后");
-            
-            // 设置渲染模式
-            SetRenderMode(renderMode);
-            
-            // 获取着色器程序
-            if (!_shaderPrograms.TryGetValue(shadingMode, out int shaderProgram))
-            {
-                return; // 如果着色器不存在，跳过渲染
-            }
-            
-            GL.UseProgram(shaderProgram);
-            
-            // 设置矩阵
-            var viewMatrix = camera.GetViewMatrix();
-            var projectionMatrix = camera.GetProjectionMatrix();
-            
-            SetMatrix(shaderProgram, "view", viewMatrix);
-            SetMatrix(shaderProgram, "projection", projectionMatrix);
-            
-            // 设置光照
-            // 光照已移除，不再需要设置
-            
-            // 先渲染坐标轴（如果存在且可见），确保透明模型能正确显示坐标轴
-            if (coordinateAxes != null && coordinateAxes.Visible)
-            {
-                // 坐标轴始终使用顶点着色器和填充模式渲染，不受全局着色模式和渲染模式影响
-                if (_shaderPrograms.TryGetValue(ShadingMode.Vertex, out int axesShaderProgram))
-                {
-                    GL.UseProgram(axesShaderProgram);
-                    
-                    // 重新设置矩阵（因为切换了着色器）
-                    SetMatrix(axesShaderProgram, "view", viewMatrix);
-                    SetMatrix(axesShaderProgram, "projection", projectionMatrix);
-                    
-                    // 坐标轴始终使用填充模式渲染
-                    SetPolygonModeSafe(PolygonMode.Fill);
-                    var prevMode = _currentRenderMode;
-                    _currentRenderMode = RenderMode.Fill;
-                    RenderModel(coordinateAxes, axesShaderProgram);
-                    _currentRenderMode = prevMode;
-                    
-                    // 恢复原始着色器和渲染模式
-                    GL.UseProgram(shaderProgram);
-                    SetRenderMode(renderMode);
-                }
-            }
-            
-            // 然后渲染所有模型（透明模型会正确混合坐标轴）
-            foreach (var model in models)
-            {
-                if (model.Visible)
-                {
-                    RenderModel(model, shaderProgram);
-                }
-            }
-            
-            // 渲染迷你坐标轴（如果存在且可见）
-            if (miniAxes != null && miniAxes.Visible && miniAxes.AxesModel != null)
-            {
-                RenderMiniAxes(miniAxes, camera, shaderProgram);
-            }
-            
-            // 渲染梯度条（在所有3D内容之后渲染，确保在最前面显示）
-            if (_gradientBar != null)
-            {
-                // 获取当前视口尺寸
-                int[] viewport = new int[4];
-                GL.GetInteger(GetPName.Viewport, viewport);
-    
-                // 确保原点为(0,0)，避免被之前的小视口偏移影响
-                if (viewport[0] != 0 || viewport[1] != 0)
-                {
-                    GL.Viewport(0, 0, viewport[2], viewport[3]);
-                }
-                _gradientBar.Render(viewport[2], viewport[3], dpiScale);
-            }
-            
-            GL.UseProgram(0);
+            // 委托给SceneRenderer处理复杂的渲染流程
+            _sceneRenderer.RenderScene(camera, models, lights, backgroundColor, shadingMode, renderMode, coordinateAxes, miniAxes, dpiScale);
         }
 
         /// <summary>
@@ -313,413 +228,20 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// <param name="shaderProgram">着色器程序</param>
         private void RenderModel(Model3D model, int shaderProgram)
         {
-            // 确保模型的渲染数据已创建
-            if (!_modelRenderData.ContainsKey(model))
-            {
-                CreateModelRenderData(model);
-            }
-            
             // 如果顶点需要更新，更新顶点缓冲区
             if (model.VerticesNeedUpdate)
             {
-                UpdateModelVertexBuffer(model);
+                _modelRenderer?.UpdateModelVertexBuffer(model);
                 model.VerticesNeedUpdate = false;
             }
             
-            var renderData = _modelRenderData[model];
-            
-            // 设置模型矩阵
-            var modelMatrix = model.GetModelMatrix();
-            SetMatrix(shaderProgram, "model", modelMatrix);
-            
-            // 设置材质属性
-            if (model.Material != null)
-            {
-                // 设置透明度
-                int alphaLocation = GL.GetUniformLocation(shaderProgram, "materialAlpha");
-                if (alphaLocation != -1)
-                {
-                    GL.Uniform1(alphaLocation, model.Material.Alpha);
-                }
-                
-                // 为材质着色器设置材质属性
-                int ambientLocation = GL.GetUniformLocation(shaderProgram, "materialAmbient");
-                if (ambientLocation != -1)
-                {
-                    GL.Uniform3(ambientLocation, model.Material.Ambient.X, model.Material.Ambient.Y, model.Material.Ambient.Z);
-                }
-                
-                int diffuseLocation = GL.GetUniformLocation(shaderProgram, "materialDiffuse");
-                if (diffuseLocation != -1)
-                {
-                    GL.Uniform3(diffuseLocation, model.Material.Diffuse.X, model.Material.Diffuse.Y, model.Material.Diffuse.Z);
-                }
-                
-                int specularLocation = GL.GetUniformLocation(shaderProgram, "materialSpecular");
-                if (specularLocation != -1)
-                {
-                    GL.Uniform3(specularLocation, model.Material.Specular.X, model.Material.Specular.Y, model.Material.Specular.Z);
-                }
-                
-                int shininessLocation = GL.GetUniformLocation(shaderProgram, "materialShininess");
-                if (shininessLocation != -1)
-                {
-                    GL.Uniform1(shininessLocation, model.Material.Shininess);
-                }
-            }
-            else
-            {
-                // 如果没有材质，使用默认值
-                int alphaLocation = GL.GetUniformLocation(shaderProgram, "materialAlpha");
-                if (alphaLocation != -1)
-                {
-                    GL.Uniform1(alphaLocation, 1.0f);
-                }
-                
-                // 为材质着色器设置默认材质属性
-                int ambientLocation = GL.GetUniformLocation(shaderProgram, "materialAmbient");
-                if (ambientLocation != -1)
-                {
-                    GL.Uniform3(ambientLocation, 0.2f, 0.2f, 0.2f);
-                }
-                
-                int diffuseLocation = GL.GetUniformLocation(shaderProgram, "materialDiffuse");
-                if (diffuseLocation != -1)
-                {
-                    GL.Uniform3(diffuseLocation, 0.8f, 0.8f, 0.8f);
-                }
-                
-                int specularLocation = GL.GetUniformLocation(shaderProgram, "materialSpecular");
-                if (specularLocation != -1)
-                {
-                    GL.Uniform3(specularLocation, 1.0f, 1.0f, 1.0f);
-                }
-                
-                int shininessLocation = GL.GetUniformLocation(shaderProgram, "materialShininess");
-                if (shininessLocation != -1)
-                {
-                    GL.Uniform1(shininessLocation, 32.0f);
-                }
-            }
-            
-            // 绑定VAO和VBO
-            GL.BindVertexArray(renderData.VAO);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
-            
-            // 动态获取并设置顶点属性位置（新格式：位置3+颜色3=6个分量）
-            int stride = 6 * sizeof(float);
-            
-            int positionLocation = GL.GetAttribLocation(shaderProgram, "aPosition");
-            if (positionLocation != -1)
-            {
-                GL.VertexAttribPointer(positionLocation, 3, VertexAttribPointerType.Float, false, stride, 0);
-                GL.EnableVertexAttribArray(positionLocation);
-            }
-            
-            int colorLocation = GL.GetAttribLocation(shaderProgram, "aColor");
-            if (colorLocation != -1)
-            {
-                GL.VertexAttribPointer(colorLocation, 3, VertexAttribPointerType.Float, false, stride, 3 * sizeof(float));
-                GL.EnableVertexAttribArray(colorLocation);
-            }
-            
-            // 法向量和纹理坐标属性已移除，不再绑定
-            
-            // 绑定默认纹理到纹理单元0（避免OpenGL警告）
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, _defaultTexture);
-            
-            // 设置纹理采样器uniform
-            int textureLocation = GL.GetUniformLocation(shaderProgram, "texture0");
-            if (textureLocation != -1)
-            {
-                GL.Uniform1(textureLocation, 0); // 绑定到纹理单元0
-            }
-            
-            // 为纹理着色器设置hasTexture uniform
-            int hasTextureLocation = GL.GetUniformLocation(shaderProgram, "hasTexture");
-            if (hasTextureLocation != -1)
-            {
-                GL.Uniform1(hasTextureLocation, 0); // 暂时设为false，使用程序生成的棋盘格纹理
-            }
-            
-            // 点模式控制（使顶点着色器能设置 gl_PointSize）
-            int pointModeLoc = GL.GetUniformLocation(shaderProgram, "uPointMode");
-            if (pointModeLoc != -1)
-            {
-                GL.Uniform1(pointModeLoc, _currentRenderMode == RenderMode.Point ? 1 : 0);
-            }
-            int pointSizeLoc = GL.GetUniformLocation(shaderProgram, "uPointSize");
-            if (pointSizeLoc != -1)
-            {
-                GL.Uniform1(pointSizeLoc, 8.0f);
-            }
-            
-            // 按渲染模式绘制
-            switch (_currentRenderMode)
-            {
-                case RenderMode.Line:
-                    if (renderData.LineEBO != 0 && renderData.LineIndexCount > 0)
-                    {
-                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.LineEBO);
-                        GL.DrawElements(PrimitiveType.Lines, renderData.LineIndexCount, DrawElementsType.UnsignedInt, 0);
-                    }
-                    else
-                    {
-                        // 回退到三角形
-                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
-                        GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
-                    }
-                    break;
-                case RenderMode.Point:
-                    GL.DrawArrays(PrimitiveType.Points, 0, model.VertexCount);
-                    break;
-                case RenderMode.Fill:
-                default:
-                    GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
-                    GL.DrawElements(PrimitiveType.Triangles, model.IndexCount, DrawElementsType.UnsignedInt, 0);
-                    break;
-            }
-            
-            // 清理
-            if (positionLocation != -1) GL.DisableVertexAttribArray(positionLocation);
-            if (colorLocation != -1) GL.DisableVertexAttribArray(colorLocation);
-            
-            GL.BindVertexArray(0);
+            // 使用ModelRenderer渲染模型
+            _modelRenderer?.RenderModel(model, shaderProgram, _currentRenderMode);
         }
 
-        /// <summary>
-        /// 创建模型的渲染数据
-        /// </summary>
-        /// <param name="model">模型</param>
-        private void CreateModelRenderData(Model3D model)
-        {
-            // 验证模型数据
-            if (model?.Vertices == null || model.Vertices.Length == 0)
-            {
-
-                return;
-            }
-            
-            if (model.Indices == null || model.Indices.Length == 0)
-            {
-
-                return;
-            }
-            
-            var renderData = new ModelRenderData();
-            
-            try
-            {
-                // 清理任何遗留的OpenGL错误（限制清理次数防止无限循环）
-                int errorClearCount = 0;
-                while (GL.GetError() != ErrorCode.NoError && errorClearCount < 10)
-                {
-                    errorClearCount++;
-                }
-                
-                // 生成VAO, VBO, EBO
-                renderData.VAO = GL.GenVertexArray();
-                renderData.VBO = GL.GenBuffer();
-                renderData.EBO = GL.GenBuffer();
-                
-                // 检查缓冲区是否创建成功
-                if (renderData.VAO == 0 || renderData.VBO == 0 || renderData.EBO == 0)
-                {
-    
-                    return;
-                }
-                
-
-                
-                GL.BindVertexArray(renderData.VAO);
-                
-                // 绑定顶点缓冲区
-                GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
-                
-
-                
-                int vertexDataSize = model.Vertices.Length * sizeof(float);
-                
-
-                
-                GL.BufferData(BufferTarget.ArrayBuffer, vertexDataSize, model.Vertices, BufferUsageHint.DynamicDraw);
-                
-
-                
-                // 绑定索引缓冲区（面三角形）
-                GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
-                int indexDataSize = model.Indices.Length * sizeof(uint);
-                GL.BufferData(BufferTarget.ElementArrayBuffer, indexDataSize, model.Indices, BufferUsageHint.StaticDraw);
-                
-                // 生成线框索引缓冲
-                try
-                {
-                    int triCount = model.IndexCount / 3;
-                    if (triCount > 0)
-                    {
-                        var lineIndices = new uint[triCount * 6];
-                        int li = 0;
-                        for (int t = 0; t < triCount; t++)
-                        {
-                            uint a = model.Indices[t * 3 + 0];
-                            uint b = model.Indices[t * 3 + 1];
-                            uint c = model.Indices[t * 3 + 2];
-                            lineIndices[li++] = a; lineIndices[li++] = b;
-                            lineIndices[li++] = b; lineIndices[li++] = c;
-                            lineIndices[li++] = c; lineIndices[li++] = a;
-                        }
-                        renderData.LineEBO = GL.GenBuffer();
-                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.LineEBO);
-                        GL.BufferData(BufferTarget.ElementArrayBuffer, lineIndices.Length * sizeof(uint), lineIndices, BufferUsageHint.StaticDraw);
-                        renderData.LineIndexCount = lineIndices.Length;
-                        // 恢复默认EBO为三角形索引
-                        GL.BindBuffer(BufferTarget.ElementArrayBuffer, renderData.EBO);
-                    }
-                }
-                catch { }
-                
-                // 检查索引缓冲区创建
-                var indexError = GL.GetError();
-                if (indexError != ErrorCode.NoError)
-                {
-
-                }
-                
-                GL.BindVertexArray(0);
-                
-                _modelRenderData[model] = renderData;
-    
-            }
-            catch (Exception)
-            {
-    
-                
-                // 清理可能已创建的资源
-                if (renderData.VAO != 0) GL.DeleteVertexArray(renderData.VAO);
-                if (renderData.VBO != 0) GL.DeleteBuffer(renderData.VBO);
-                if (renderData.EBO != 0) GL.DeleteBuffer(renderData.EBO);
-                if (renderData.LineEBO != 0) GL.DeleteBuffer(renderData.LineEBO);
-            }
-        }
+        // CreateModelRenderData和UpdateModelVertexBuffer方法已移至ModelRenderer
         
-        /// <summary>
-        /// 更新模型的顶点缓冲区数据
-        /// </summary>
-        /// <param name="model">模型</param>
-        public void UpdateModelVertexBuffer(Model3D model)
-        {
-            if (!_isInitialized || model?.Vertices == null)
-            {
-                return; // 如果渲染器未初始化或模型数据无效，跳过更新
-            }
-            
-            // 检查顶点数组是否有效
-            if (model.Vertices.Length == 0)
-            {
-
-                return;
-            }
-            
-            if (!_modelRenderData.TryGetValue(model, out var renderData))
-            {
-
-                return; // 如果模型没有渲染数据，跳过更新
-            }
-            
-            // 检查VBO是否有效
-            if (renderData.VBO == 0)
-            {
-
-                return;
-            }
-            
-            // 检查VBO是否仍然是有效的OpenGL对象
-            if (!GL.IsBuffer(renderData.VBO))
-            {
-                
-                // 重新创建渲染数据
-                CreateModelRenderData(model);
-                if (!_modelRenderData.TryGetValue(model, out renderData) || !GL.IsBuffer(renderData.VBO))
-                {
-                    
-                    return;
-                }
-            }
-            
-            try
-            {
-                // 检查VBO是否仍然有效
-                if (!GL.IsBuffer(renderData.VBO))
-                {
-                    _modelRenderData.Remove(model);
-                    CreateModelRenderData(model);
-                    return;
-                }
-                
-                // 清理任何遗留的OpenGL错误（限制清理次数防止无限循环）
-                int errorClearCount = 0;
-                while (GL.GetError() != ErrorCode.NoError && errorClearCount < 10)
-                {
-                    errorClearCount++;
-                }
-                
-                // 绑定并更新顶点缓冲区
-                GL.BindBuffer(BufferTarget.ArrayBuffer, renderData.VBO);
-                
-                // 检查绑定是否成功
-                var bindError = GL.GetError();
-                if (bindError != ErrorCode.NoError)
-                {
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-                    return;
-                }
-                
-                // 计算数据大小
-                int dataSize = model.Vertices.Length * sizeof(float);
-                if (dataSize <= 0)
-                {
-    
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-                    return;
-                }
-                
-                // 获取当前缓冲区大小
-                GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int currentBufferSize);
-                
-                // 如果新数据大小超过当前缓冲区大小，重新分配缓冲区
-                if (dataSize > currentBufferSize)
-                {
-
-                    GL.BufferData(BufferTarget.ArrayBuffer, dataSize, model.Vertices, BufferUsageHint.DynamicDraw);
-                }
-                else
-                {
-                    // 更新缓冲区数据
-                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, dataSize, model.Vertices);
-                }
-                
-                // 解绑缓冲区
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-                
-                // 检查OpenGL错误
-                var error = GL.GetError();
-                if (error != ErrorCode.NoError)
-                {
-
-                }
-            }
-            catch (Exception)
-            {
-
-                // 确保解绑缓冲区
-                try
-                {
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-                }
-                catch { }
-            }
-        }
+        // UpdateModelVertexBuffer方法已移至ModelRenderer
         
         /// <summary>
         /// 更新所有模型的动画
@@ -999,139 +521,17 @@ namespace Avalonia3DControl.Rendering.OpenGL
         }
         #endregion
 
-        #region OpenGL错误检查
-        private void CheckGLError(string operation)
-        {
-            ErrorCode error = GL.GetError();
-            if (error != ErrorCode.NoError)
-            {
-    
-            }
-        }
-        #endregion
-
-        #region 着色器创建方法
-
-
-
-
-
-
-        private void CreateVertexShader()
-        {
-            // 从文件加载着色器
-            string vertexSource = ShaderLoader.LoadRendererVertexShader();
-            string fragmentSource = ShaderLoader.LoadRendererFragmentShader();
-
-            _shaderPrograms[ShadingMode.Vertex] = CompileShaderProgram(vertexSource, fragmentSource);
-        }
-
-        private void CreateTextureShader()
-        {
-            // 从文件加载着色器
-            string vertexSource = ShaderLoader.LoadTextureVertexShader();
-            string fragmentSource = ShaderLoader.LoadTextureFragmentShader();
-
-            _shaderPrograms[ShadingMode.Texture] = CompileShaderProgram(vertexSource, fragmentSource);
-        }
-
-        private void CreateMaterialShader()
-        {
-            try
-            {
-    
-                // 从文件加载材质顶点着色器
-            string vertexSource = ShaderLoader.LoadMaterialVertexShader();
-
-
-
-            // 从文件加载材质片段着色器
-            string fragmentSource = ShaderLoader.LoadMaterialFragmentShader();
-
-                _shaderPrograms[ShadingMode.Material] = CompileShaderProgram(vertexSource, fragmentSource);
-
-            }
-            catch (Exception)
-            {
-
-                throw;
-            }
-        }
-
-        private int CompileShaderProgram(string vertexSource, string fragmentSource)
-        {
-            // 调试输出已移除
-            
-            // 编译顶点着色器
-            int vertexShader = GL.CreateShader(ShaderType.VertexShader);
-            GL.ShaderSource(vertexShader, vertexSource);
-            GL.CompileShader(vertexShader);
-            
-            // 检查编译错误
-            GL.GetShader(vertexShader, ShaderParameter.CompileStatus, out int vertexSuccess);
-            if (vertexSuccess == 0)
-            {
-                string infoLog = GL.GetShaderInfoLog(vertexShader);
-                throw new Exception($"顶点着色器编译失败: {infoLog}");
-            }
-            
-            // 编译片段着色器
-            int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
-            GL.ShaderSource(fragmentShader, fragmentSource);
-            GL.CompileShader(fragmentShader);
-            
-            // 检查编译错误
-            GL.GetShader(fragmentShader, ShaderParameter.CompileStatus, out int fragmentSuccess);
-            if (fragmentSuccess == 0)
-            {
-                string infoLog = GL.GetShaderInfoLog(fragmentShader);
-                throw new Exception($"片段着色器编译失败: {infoLog}");
-            }
-            
-            // 创建着色器程序
-            int shaderProgram = GL.CreateProgram();
-            GL.AttachShader(shaderProgram, vertexShader);
-            GL.AttachShader(shaderProgram, fragmentShader);
-            GL.LinkProgram(shaderProgram);
-            
-            // 检查链接错误
-            GL.GetProgram(shaderProgram, GetProgramParameterName.LinkStatus, out int linkSuccess);
-            if (linkSuccess == 0)
-            {
-                string infoLog = GL.GetProgramInfoLog(shaderProgram);
-                throw new Exception($"着色器程序链接失败: {infoLog}");
-            }
-            
-            // 清理着色器对象
-            GL.DeleteShader(vertexShader);
-            GL.DeleteShader(fragmentShader);
-            
-            return shaderProgram;
-        }
-        #endregion
-
         #region 清理方法
         /// <summary>
         /// 清理OpenGL资源
         /// </summary>
         public void Cleanup()
         {
-            // 清理模型渲染数据
-            foreach (var renderData in _modelRenderData.Values)
-            {
-                GL.DeleteVertexArray(renderData.VAO);
-                GL.DeleteBuffer(renderData.VBO);
-                GL.DeleteBuffer(renderData.EBO);
-                if (renderData.LineEBO != 0) GL.DeleteBuffer(renderData.LineEBO);
-            }
-            _modelRenderData.Clear();
+            // 清理模型渲染器
+            _modelRenderer?.Cleanup();
             
             // 清理着色器程序
-            foreach (var shaderProgram in _shaderPrograms.Values)
-            {
-                GL.DeleteProgram(shaderProgram);
-            }
-            _shaderPrograms.Clear();
+            _shaderManager?.Cleanup();
             
             // 清理纹理
             if (_defaultTexture != 0)
@@ -1155,7 +555,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
             if (miniAxes.AxesModel == null) return;
             
             // 迷你坐标轴始终使用顶点着色器
-            if (!_shaderPrograms.TryGetValue(ShadingMode.Vertex, out int miniAxesShaderProgram))
+            int miniAxesShaderProgram = _shaderManager.GetShaderProgram(ShadingMode.Vertex);
+            if (miniAxesShaderProgram == 0)
             {
                 return; // 如果顶点着色器不存在，跳过渲染
             }
@@ -1214,14 +615,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 // 渲染迷你坐标轴模型
                 RenderModel(miniAxes.AxesModel, miniAxesShaderProgram);
             
-                // 禁用深度测试以确保标注可见
-                GL.Disable(EnableCap.DepthTest);
-            
-                // 渲染XYZ标注
-                RenderAxisLabels(miniAxesShaderProgram, miniView, miniProjection);
-            
-                // 重新启用深度测试
-                GL.Enable(EnableCap.DepthTest);
+                // 标注渲染现在由SceneRenderer处理
             }
             finally
             {
@@ -1237,256 +631,19 @@ namespace Avalonia3DControl.Rendering.OpenGL
             GL.UseProgram(shaderProgram); // 恢复原始着色器
         }
         
-        /// <summary>
-        /// 渲染坐标轴标注（XYZ）
-        /// </summary>
-        private void RenderAxisLabels(int shaderProgram, Matrix4 view, Matrix4 projection)
-        {
-            // 设置线条渲染模式，增加线宽使标注更清晰
-            GL.LineWidth(8.0f);
-            
-            // 标注位置（放在各轴顶端并略微前移，避免与轴重叠）
-            float labelSize = 0.15f; // 与字母绘制大小保持一致
-            float offsetAlong = labelSize + 0.02f; // 沿轴方向的额外偏移，确保完全在轴尖之外
-            float labelBase = 1.0f; // 轴的顶端（迷你坐标轴模型长度为1）
-            Vector3[] labelPositions = {
-                new Vector3(labelBase + offsetAlong, 0, 0), // X标注位置：轴尖之外
-                new Vector3(0, labelBase + offsetAlong, 0), // Y标注位置：轴尖之外
-                new Vector3(0, 0, labelBase + offsetAlong)  // Z标注位置：轴尖之外
-            };
-            
-            Vector3[] labelColors = {
-                new Vector3(1.0f, 0.0f, 0.0f), // X - 红色
-                new Vector3(0.0f, 1.0f, 0.0f), // Y - 绿色
-                new Vector3(0.0f, 0.0f, 1.0f)  // Z - 蓝色
-            };
-            
-            // 渲染每个标注
-            for (int i = 0; i < 3; i++)
-            {
-                Vector3 position = labelPositions[i];
-                Vector3 color = labelColors[i];
-                
-                // 设置模型矩阵（移动到标注位置）
-                Matrix4 labelModel = Matrix4.CreateTranslation(position);
-                SetMatrix(shaderProgram, "model", labelModel);
-                
-                // 根据轴绘制对应的字母（使用填充三角形）
-                switch (i)
-                {
-                    case 0: // X
-                        DrawFilledLetterX(color);
-                        break;
-                    case 1: // Y
-                        DrawFilledLetterY(color);
-                        break;
-                    case 2: // Z
-                        DrawFilledLetterZ(color);
-                        break;
-                }
-            }
-            
-            GL.LineWidth(1.0f); // 恢复默认线宽
-        }
+
         
-        /// <summary>
-        /// 绘制填充字母X（使用三角形）
-        /// </summary>
-        private void DrawFilledLetterX(Vector3 color)
-        {
-            float size = 0.12f;
-            float width = 0.03f; // 笔画宽度
-            
-            // X字母由两个交叉的矩形组成，每个矩形用两个三角形绘制
-            float[] vertices = {
-                // 第一条对角线的矩形（左上到右下）
-                // 三角形1
-                -size-width, size, 0, color.X, color.Y, color.Z,
-                -size+width, size, 0, color.X, color.Y, color.Z,
-                size-width, -size, 0, color.X, color.Y, color.Z,
-                // 三角形2
-                -size+width, size, 0, color.X, color.Y, color.Z,
-                size+width, -size, 0, color.X, color.Y, color.Z,
-                size-width, -size, 0, color.X, color.Y, color.Z,
-                
-                // 第二条对角线的矩形（右上到左下）
-                // 三角形3
-                size-width, size, 0, color.X, color.Y, color.Z,
-                size+width, size, 0, color.X, color.Y, color.Z,
-                -size+width, -size, 0, color.X, color.Y, color.Z,
-                // 三角形4
-                size+width, size, 0, color.X, color.Y, color.Z,
-                -width, width, 0, color.X, color.Y, color.Z,
-                width, width, 0, color.X, color.Y, color.Z,
-                
-                // 中心到下方的竖线
-                // 三角形5
-                -width, width, 0, color.X, color.Y, color.Z,
-                width, width, 0, color.X, color.Y, color.Z,
-                -width, -size, 0, color.X, color.Y, color.Z,
-                // 三角形6
-                width, width, 0, color.X, color.Y, color.Z,
-                width, -size, 0, color.X, color.Y, color.Z,
-                -width, -size, 0, color.X, color.Y, color.Z
-            };
-            DrawTriangles(vertices, 18);
-        }
+
         
-        /// <summary>
-        /// 绘制填充字母Y（使用三角形）
-        /// </summary>
-        private void DrawFilledLetterY(Vector3 color)
-        {
-            float size = 0.12f;
-            float width = 0.03f; // 笔画宽度
-            
-            float[] vertices = {
-                // 左上分支
-                // 三角形1
-                -size-width, size, 0, color.X, color.Y, color.Z,
-                -size+width, size, 0, color.X, color.Y, color.Z,
-                -width, width, 0, color.X, color.Y, color.Z,
-                // 三角形2
-                -size+width, size, 0, color.X, color.Y, color.Z,
-                width, width, 0, color.X, color.Y, color.Z,
-                -width, width, 0, color.X, color.Y, color.Z,
-                
-                // 右上分支
-                // 三角形3
-                size-width, size, 0, color.X, color.Y, color.Z,
-                size+width, size, 0, color.X, color.Y, color.Z,
-                width, width, 0, color.X, color.Y, color.Z,
-                // 三角形4
-                size+width, size, 0, color.X, color.Y, color.Z,
-                -width, width, 0, color.X, color.Y, color.Z,
-                width, width, 0, color.X, color.Y, color.Z,
-                
-                // 中心到下方的竖线
-                // 三角形5
-                -width, width, 0, color.X, color.Y, color.Z,
-                width, width, 0, color.X, color.Y, color.Z,
-                -width, -size, 0, color.X, color.Y, color.Z,
-                // 三角形6
-                width, width, 0, color.X, color.Y, color.Z,
-                width, -size, 0, color.X, color.Y, color.Z,
-                -width, -size, 0, color.X, color.Y, color.Z
-            };
-            DrawTriangles(vertices, 18);
-        }
+
         
-        /// <summary>
-        /// 绘制填充字母Z（使用三角形）
-        /// </summary>
-        private void DrawFilledLetterZ(Vector3 color)
-        {
-            float size = 0.18f;
-            float width = 0.05f; // 笔画宽度（更粗）
-            
-            float[] vertices = {
-                // 上横线
-                // 三角形1
-                -size, size, 0, color.X, color.Y, color.Z,
-                size, size, 0, color.X, color.Y, color.Z,
-                -size, size-width, 0, color.X, color.Y, color.Z,
-                // 三角形2
-                size, size, 0, color.X, color.Y, color.Z,
-                size, size-width, 0, color.X, color.Y, color.Z,
-                -size, size-width, 0, color.X, color.Y, color.Z,
-                
-                // 下横线
-                // 三角形3
-                -size, -size+width, 0, color.X, color.Y, color.Z,
-                size, -size+width, 0, color.X, color.Y, color.Z,
-                -size, -size, 0, color.X, color.Y, color.Z,
-                size, -size+width, 0, color.X, color.Y, color.Z,
-                size, -size, 0, color.X, color.Y, color.Z,
-                -size, -size, 0, color.X, color.Y, color.Z,
-                
-                // 对角线（从右上到左下）
-                // 三角形5
-                size-width, size-width, 0, color.X, color.Y, color.Z,
-                size, size-width, 0, color.X, color.Y, color.Z,
-                -size, -size+width, 0, color.X, color.Y, color.Z,
-                size, size-width, 0, color.X, color.Y, color.Z,
-                -size+width, -size+width, 0, color.X, color.Y, color.Z,
-                -size, -size+width, 0, color.X, color.Y, color.Z
-            };
-            DrawTriangles(vertices, 18);
-        }
+
         
-        /// <summary>
-        /// 绘制三角形
-        /// </summary>
-        private void DrawTriangles(float[] vertices, int vertexCount)
-        {
-            // 创建临时VAO和VBO
-            uint vao = (uint)GL.GenVertexArray();
-            uint vbo = (uint)GL.GenBuffer();
-            
-            GL.BindVertexArray(vao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
-            
-            // 设置顶点属性
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
-            GL.EnableVertexAttribArray(1);
-            
-            // 绘制三角形
-            GL.DrawArrays(PrimitiveType.Triangles, 0, vertexCount);
-            
-            // 清理
-            GL.BindVertexArray(0);
-            GL.DeleteVertexArray(vao);
-            GL.DeleteBuffer(vbo);
-        }
+
         
-        /// <summary>
-        /// 绘制字母X
-        /// </summary>
-        private void DrawLetterX(Vector3 color)
-        {
-            float size = 0.15f;
-            float[] vertices = {
-                // 第一条对角线
-                -size, -size, 0, color.X, color.Y, color.Z,
-                 size,  size, 0, color.X, color.Y, color.Z,
-                // 第二条对角线
-                -size,  size, 0, color.X, color.Y, color.Z,
-                 size, -size, 0, color.X, color.Y, color.Z
-            };
-            
-            DrawLines(vertices, 4);
-        }
+
         
-        /// <summary>
-        /// 绘制线条
-        /// </summary>
-        private void DrawLines(float[] vertices, int vertexCount)
-        {
-            // 创建临时VAO和VBO
-            uint vao = (uint)GL.GenVertexArray();
-            uint vbo = (uint)GL.GenBuffer();
-            
-            GL.BindVertexArray(vao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
-            
-            // 设置顶点属性
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
-            GL.EnableVertexAttribArray(1);
-            
-            // 绘制线条
-            GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
-            
-            // 清理
-            GL.BindVertexArray(0);
-            GL.DeleteVertexArray(vao);
-            GL.DeleteBuffer(vbo);
-        }
+
         
         #region 梯度条控制方法
         /// <summary>
@@ -1583,21 +740,11 @@ namespace Avalonia3DControl.Rendering.OpenGL
         #region IDisposable实现
         public void Dispose()
         {
-            // 清理所有模型的渲染数据
-            foreach (var renderData in _modelRenderData.Values)
-            {
-                GL.DeleteVertexArray(renderData.VAO);
-                GL.DeleteBuffer(renderData.VBO);
-                GL.DeleteBuffer(renderData.EBO);
-            }
-            _modelRenderData.Clear();
+            // 清理模型渲染器
+            _modelRenderer?.Dispose();
             
             // 清理所有着色器程序
-            foreach (var shaderProgram in _shaderPrograms.Values)
-            {
-                GL.DeleteProgram(shaderProgram);
-            }
-            _shaderPrograms.Clear();
+            _shaderManager?.Cleanup();
             
             // 清理纹理资源
             if (_defaultTexture != 0)

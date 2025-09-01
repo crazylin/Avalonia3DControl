@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL4;
 using System;
 using System.Collections.Generic;
+using Avalonia3DControl.Materials;
 
 namespace Avalonia3DControl.Rendering
 {
@@ -11,6 +12,36 @@ namespace Avalonia3DControl.Rendering
     {
         private readonly Dictionary<string, int> _shaderPrograms = new Dictionary<string, int>();
         private bool _disposed = false;
+
+        /// <summary>
+        /// 初始化着色器管理器
+        /// </summary>
+        public void Initialize()
+        {
+            // 初始化默认着色器程序
+            try
+            {
+                // 创建顶点着色器程序
+                string vertexVertexSource = ShaderLoader.LoadRendererVertexShader();
+                string vertexFragmentSource = ShaderLoader.LoadRendererFragmentShader();
+                CreateShaderProgram("vertex", vertexVertexSource, vertexFragmentSource);
+                
+                // 创建纹理着色器程序
+                string textureVertexSource = ShaderLoader.LoadTextureVertexShader();
+                string textureFragmentSource = ShaderLoader.LoadTextureFragmentShader();
+                CreateShaderProgram("texture", textureVertexSource, textureFragmentSource);
+                
+                // 创建材质着色器程序
+                string materialVertexSource = ShaderLoader.LoadMaterialVertexShader();
+                string materialFragmentSource = ShaderLoader.LoadMaterialFragmentShader();
+                CreateShaderProgram("material", materialVertexSource, materialFragmentSource);
+            }
+            catch (Exception ex)
+            {
+                // 如果着色器加载失败，记录错误但不抛出异常，避免程序崩溃
+                System.Diagnostics.Debug.WriteLine($"着色器初始化失败: {ex.Message}");
+            }
+        }
 
         /// <summary>
         /// 创建并编译着色器程序
@@ -85,7 +116,19 @@ namespace Avalonia3DControl.Rendering
             {
                 return program;
             }
+            
             throw new ArgumentException($"着色器程序 '{name}' 不存在");
+        }
+
+        /// <summary>
+        /// 根据着色模式获取着色器程序
+        /// </summary>
+        /// <param name="shadingMode">着色模式</param>
+        /// <returns>着色器程序ID</returns>
+        public int GetShaderProgram(ShadingMode shadingMode)
+        {
+            string name = shadingMode.ToString().ToLower();
+            return GetShaderProgram(name);
         }
 
         /// <summary>
@@ -135,17 +178,25 @@ namespace Avalonia3DControl.Rendering
         }
 
         /// <summary>
+        /// 清理资源
+        /// </summary>
+        public void Cleanup()
+        {
+            foreach (var program in _shaderPrograms.Values)
+            {
+                GL.DeleteProgram(program);
+            }
+            _shaderPrograms.Clear();
+        }
+
+        /// <summary>
         /// 释放所有资源
         /// </summary>
         public void Dispose()
         {
             if (!_disposed)
             {
-                foreach (var program in _shaderPrograms.Values)
-                {
-                    GL.DeleteProgram(program);
-                }
-                _shaderPrograms.Clear();
+                Cleanup();
                 _disposed = true;
             }
         }

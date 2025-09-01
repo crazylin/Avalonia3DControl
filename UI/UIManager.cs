@@ -391,12 +391,17 @@ namespace Avalonia3DControl.UI
         /// <param name="modelName">模型名称</param>
         private void ShowOnlyModel(string? modelName)
         {
+            Console.WriteLine($"[UIManager] 显示模型: {modelName}");
+            
             // 切换到模型
             _openGLControl.SetCurrentModel(modelName);
+            Console.WriteLine($"[UIManager] 已设置当前模型: {modelName}");
             
             // 如果加载了模型，为其设置动画控制器
             if (!string.IsNullOrEmpty(modelName) && _modalAnimationPanel != null)
             {
+                Console.WriteLine("[UIManager] 开始设置动画控制器和梯度条事件");
+                
                 // 订阅梯度条事件
                 _modalAnimationPanel.GradientBarVisibilityChanged += OnGradientBarVisibilityChanged;
                 _modalAnimationPanel.GradientBarPositionChanged += OnGradientBarPositionChanged;
@@ -408,6 +413,7 @@ namespace Avalonia3DControl.UI
                 
                 // 初始设置动画控制器（将在模型选择时更新）
                 SetupAnimationForCurrentModel();
+                Console.WriteLine("[UIManager] 动画控制器设置完成");
             }
         }
 
@@ -465,12 +471,23 @@ namespace Avalonia3DControl.UI
         /// </summary>
         public void TriggerDefaultModelLoad()
         {
+            Console.WriteLine("[UIManager] 触发默认模型加载");
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 var cubeModelRadio = _window.FindControl<RadioButton>("CubeModelRadio");
+                Console.WriteLine($"[UIManager] CubeModelRadio状态: {cubeModelRadio?.IsChecked}");
                 if (cubeModelRadio?.IsChecked == true)
                 {
+                    Console.WriteLine("[UIManager] 开始加载立方体模型");
                     ShowOnlyModel("Cube");
+                }
+                else
+                {
+                    Console.WriteLine("[UIManager] 立方体单选按钮未选中，手动选中并加载");
+                    if (cubeModelRadio != null)
+                    {
+                        cubeModelRadio.IsChecked = true;
+                    }
                 }
             }, Avalonia.Threading.DispatcherPriority.Background);
         }
