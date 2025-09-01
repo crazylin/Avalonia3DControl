@@ -139,37 +139,5 @@ namespace Avalonia3DControl.Core.Models
         }
     }
 
-    /// <summary>
-    /// 坐标轴专用模型类，始终保持在世界坐标原点
-    /// </summary>
-    public class CoordinateAxesModel : Model3D
-    {
-        /// <summary>
-        /// 标识这是坐标轴模型，需要特殊渲染处理
-        /// </summary>
-        public bool IsCoordinateAxes => true;
-        
-        public CoordinateAxesModel()
-        {
-            var axesData = GeometryFactory.CreateCoordinateAxes();
-            Vertices = axesData.Vertices;
-            Indices = axesData.Indices;
-            VertexCount = axesData.VertexCount;
-            IndexCount = axesData.IndexCount;
-            Material = axesData.Material;
-            Position = Vector3.Zero;
-            Rotation = Vector3.Zero;
-            Scale = Vector3.One;
-            Visible = true;
-        }
-        
-        /// <summary>
-        /// 坐标轴始终返回单位矩阵，不受任何变换影响
-        /// </summary>
-        /// <returns>单位矩阵</returns>
-        public override Matrix4 GetModelMatrix()
-        {
-            return Matrix4.Identity;
-        }
-    }
+
 }

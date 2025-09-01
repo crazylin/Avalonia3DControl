@@ -3,8 +3,14 @@ using OpenTK.Mathematics;
 namespace Avalonia3DControl.Materials
 {
     /// <summary>
-    /// 着色模式枚举
+    /// 着色模式枚举，定义3D对象的光照计算方式
     /// </summary>
+    /// <remarks>
+    /// 不同的着色模式会产生不同的视觉效果：
+    /// - Flat: 平面着色，每个面使用统一颜色
+    /// - Smooth: 平滑着色，在顶点间插值计算光照
+    /// - Wireframe: 线框模式，只显示模型的边框
+    /// </remarks>
     public enum ShadingMode
     {
         Vertex,         // 顶点显示
@@ -13,8 +19,14 @@ namespace Avalonia3DControl.Materials
     }
 
     /// <summary>
-    /// 渲染模式枚举
+    /// 渲染模式枚举，定义3D对象的渲染方式
     /// </summary>
+    /// <remarks>
+    /// 渲染模式控制几何体的显示方式：
+    /// - Solid: 实体渲染，显示完整的几何体表面
+    /// - Wireframe: 线框渲染，只显示几何体的边线
+    /// - Points: 点渲染，只显示顶点
+    /// </remarks>
     public enum RenderMode
     {
         Point,          // 点模式
@@ -23,8 +35,21 @@ namespace Avalonia3DControl.Materials
     }
 
     /// <summary>
-    /// 材质类
+    /// 材质类，定义3D对象的外观属性和光照响应
     /// </summary>
+    /// <remarks>
+    /// Material类封装了物体表面的视觉属性，包括：
+    /// - 漫反射颜色：物体的基本颜色
+    /// - 镜面反射颜色：高光颜色
+    /// - 光泽度：控制高光的锐利程度
+    /// - 环境光颜色：环境照明下的颜色
+    /// 
+    /// 提供了多种预设材质工厂方法：
+    /// - CreatePlastic(): 塑料材质
+    /// - CreateMetal(): 金属材质
+    /// - CreateGlass(): 玻璃材质
+    /// - CreateRubber(): 橡胶材质
+    /// </remarks>
     public class Material
     {
         public Vector3 Ambient { get; set; }      // 环境光反射

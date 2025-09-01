@@ -254,9 +254,9 @@ namespace Avalonia3DControl.UI
                 }
                 
                 // 对坐标轴只更新透明度，保持其原有的金属材质特性
-                if (scene.CoordinateAxes != null && scene.CoordinateAxes.Material != null)
+                if (scene.CoordinateAxes?.AxesModel != null && scene.CoordinateAxes.AxesModel.Material != null)
                 {
-                    scene.CoordinateAxes.Material.Alpha = material.Alpha;
+                    scene.CoordinateAxes.AxesModel.Material.Alpha = material.Alpha;
                 }
                 
                 // 对迷你坐标轴只更新透明度
@@ -369,9 +369,9 @@ namespace Avalonia3DControl.UI
                 }
                 
                 // 应用透明度到坐标轴
-                if (scene.CoordinateAxes != null && scene.CoordinateAxes.Material != null)
+                if (scene.CoordinateAxes?.AxesModel != null && scene.CoordinateAxes.AxesModel.Material != null)
                 {
-                    scene.CoordinateAxes.Material.Alpha = alpha;
+                    scene.CoordinateAxes.AxesModel.Material.Alpha = alpha;
                 }
                 
                 // 应用透明度到迷你坐标轴

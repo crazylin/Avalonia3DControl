@@ -2,6 +2,7 @@ using OpenTK.Graphics.OpenGL4;
 using System;
 using System.Collections.Generic;
 using Avalonia3DControl.Materials;
+using Avalonia3DControl.Core.ErrorHandling;
 
 namespace Avalonia3DControl.Rendering
 {
@@ -39,7 +40,7 @@ namespace Avalonia3DControl.Rendering
             catch (Exception ex)
             {
                 // 如果着色器加载失败，记录错误但不抛出异常，避免程序崩溃
-                System.Diagnostics.Debug.WriteLine($"着色器初始化失败: {ex.Message}");
+                ErrorHandler.HandleInitializationException(ex, "着色器初始化");
             }
         }
 
@@ -101,7 +102,8 @@ namespace Avalonia3DControl.Rendering
             }
             catch (Exception ex)
             {
-                throw new Exception($"创建着色器程序 '{name}' 失败: {ex.Message}", ex);
+                ErrorHandler.HandleResourceException(ex, $"创建着色器程序 '{name}'");
+                throw;
             }
         }
 

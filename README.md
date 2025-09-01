@@ -5,13 +5,16 @@ A cross-platform 3D control for Avalonia applications with OpenGL rendering supp
 ## Features
 
 - **Cross-platform**: Built on Avalonia framework, supports Windows, macOS, and Linux
-- **OpenGL Rendering**: High-performance 3D rendering using OpenGL
+- **OpenGL Rendering**: High-performance 3D rendering with optimized memory allocation
 - **Multiple Projection Modes**: Switch between perspective and orthographic projections
-- **Coordinate Axes**: Visual coordinate system with independent shader rendering
+- **Independent Coordinate Systems**: 
+  - **Coordinate Axes**: Configurable 3D coordinate axes with independent rendering
+  - **Mini Axes**: Corner mini-axes for orientation reference with consistent design
 - **Multiple Shading Modes**: Support for vertex shading and texture shading
-- **Interactive Camera**: Mouse-controlled camera rotation and zoom
-- **Mini Axes**: Corner mini-axes for orientation reference
-- **Modern UI**: Clean and intuitive user interface
+- **Interactive Camera**: Mouse-controlled camera rotation and zoom with smooth controls
+- **Robust Error Handling**: Comprehensive error management and exception handling
+- **Modern UI**: Clean and intuitive user interface with animation support
+- **Modular Architecture**: Well-structured codebase following SOLID principles
 
 ## Screenshots
 
@@ -75,30 +78,67 @@ The `OpenGL3DControl` can be integrated into any Avalonia application:
 
 ### Core Components
 
-- **OpenGL3DControl**: Main 3D control component
-- **OpenGLRenderer**: OpenGL rendering engine
-- **Scene3D**: 3D scene management
-- **Camera**: Camera system with projection controls
-- **Model3D**: 3D model representation
-- **Material**: Material and shading system
+- **OpenGL3DControl**: Main 3D control component with integrated event handling
+- **OpenGLRenderer**: Optimized OpenGL rendering engine with null-safe operations
+- **Scene3D**: Enhanced 3D scene management with independent coordinate systems
+- **Camera**: Advanced camera system with smooth projection controls
+- **Model3D**: Flexible 3D model representation with material support
+- **Material**: Comprehensive material and shading system
+- **CoordinateAxes**: Independent coordinate axes component with configurable display
+- **MiniAxes**: Compact orientation reference with consistent design patterns
+- **ErrorHandler**: Robust error handling and exception management system
 
 ### Project Structure
 
 ```
 Avalonia3DControl/
 ├── Core/
-│   ├── Cameras/          # Camera system
+│   ├── Animation/        # Animation system and modal data
+│   ├── Cameras/          # Camera system with controller
+│   ├── ErrorHandling/    # Comprehensive error management
+│   ├── Input/            # Input handling system
 │   ├── Lighting/         # Lighting system
 │   ├── Models/           # 3D model classes
-│   └── Scene3D.cs        # Scene management
+│   ├── CoordinateAxes.cs # Independent coordinate axes component
+│   ├── MiniAxes.cs       # Mini axes orientation reference
+│   └── Scene3D.cs        # Enhanced scene management
 ├── Geometry/
-│   └── Factories/        # Geometry generation
-├── Materials/            # Material and shading
+│   └── Factories/        # Optimized geometry generation
+├── Materials/            # Material and shading system
 ├── Rendering/
-│   └── OpenGL/           # OpenGL rendering engine
-├── UI/                   # User interface
-└── OpenGL3DControl.cs    # Main control
+│   ├── OpenGL/           # Optimized OpenGL rendering engine
+│   ├── GeometryRenderer.cs # Geometry rendering utilities
+│   ├── RenderConfiguration.cs # Render settings
+│   ├── RenderState.cs    # Render state management
+│   ├── ShaderLoader.cs   # Shader loading utilities
+│   └── ShaderManager.cs  # Shader program management
+├── UI/                   # Enhanced user interface
+│   ├── CharacterRenderer.cs # Text rendering
+│   ├── GradientBar.cs    # Gradient visualization
+│   ├── ModalAnimationPanel.* # Animation control panel
+│   └── UIManager.cs      # UI event management
+├── Shaders/              # GLSL shader programs
+│   ├── GradientBar/      # Gradient rendering shaders
+│   └── Renderer/         # Model rendering shaders
+└── OpenGL3DControl.cs    # Main 3D control component
 ```
+
+## Recent Improvements
+
+### Version 2.0 Enhancements
+
+- **Independent Coordinate Systems**: Extracted `CoordinateAxes` as a standalone component with consistent design patterns matching `MiniAxes`
+- **Enhanced Error Handling**: Implemented comprehensive error management with null-safe operations throughout the codebase
+- **Performance Optimizations**: 
+  - Optimized memory allocation patterns
+  - Improved rendering pipeline efficiency
+  - Enhanced shader management system
+- **Code Quality Improvements**:
+  - Applied SOLID principles across the architecture
+  - Improved code documentation with comprehensive XML comments
+  - Eliminated all compiler warnings for cleaner builds
+  - Enhanced modularity and maintainability
+- **UI Enhancements**: Added animation support and improved user interaction feedback
 
 ## Technical Details
 

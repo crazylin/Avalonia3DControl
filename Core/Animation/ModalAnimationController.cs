@@ -7,9 +7,15 @@ using Avalonia3DControl.Core.Models;
 namespace Avalonia3DControl.Core.Animation
 {
     /// <summary>
-    /// 动画状态枚举
-    /// </summary>
-    public enum AnimationState
+/// 动画状态枚举，定义模态动画的播放状态
+/// </summary>
+/// <remarks>
+/// 动画状态控制模态动画的生命周期：
+/// - Stopped: 动画已停止
+/// - Playing: 动画正在播放
+/// - Paused: 动画已暂停
+/// </remarks>
+public enum AnimationState
     {
         Stopped,
         Playing,
@@ -17,9 +23,18 @@ namespace Avalonia3DControl.Core.Animation
     }
     
     /// <summary>
-    /// 颜色梯度基础类型
-    /// </summary>
-    public enum GradientBaseType
+/// 颜色梯度基础类型，定义不同的颜色渐变方案
+/// </summary>
+/// <remarks>
+/// 颜色梯度基础类型用于将位移值映射为可视化颜色：
+/// - Classic: 经典梯度（蓝色->绿色->黄色->红色）
+/// - Thermal: 热力图梯度（黑色->红色->黄色->白色）
+/// - Rainbow: 彩虹梯度（紫色->蓝色->绿色->黄色->红色）
+/// - Monochrome: 单色梯度（灰色->白色）
+/// - Ocean: 海洋梯度（深蓝->浅蓝->青色->白色）
+/// - Fire: 火焰梯度（深红->红色->橙色->黄色）
+/// </remarks>
+public enum GradientBaseType
     {
         Classic,        // 经典：蓝色->绿色->黄色->红色
         Thermal,        // 热力图：黑色->红色->黄色->白色
@@ -64,9 +79,23 @@ namespace Avalonia3DControl.Core.Animation
     }
     
     /// <summary>
-    /// 振型动画控制器
-    /// </summary>
-    public class ModalAnimationController : IDisposable
+/// 模态动画控制器，管理3D模型的模态振动动画
+/// </summary>
+/// <remarks>
+/// ModalAnimationController负责处理模态分析结果的动画播放，包括：
+/// - 模态数据管理：加载和存储模态分析结果
+/// - 动画播放控制：播放、暂停、停止、重置
+/// - 顶点位移计算：根据模态数据计算实时顶点位置
+/// - 颜色渐变映射：将位移量映射为可视化颜色
+/// - 性能优化：缓存计算结果，减少重复计算
+/// 
+/// 支持的功能：
+/// - 多模态叠加：同时播放多个模态
+/// - 实时颜色更新：根据位移动态更新顶点颜色
+/// - 放大系数控制：调整动画的可视化幅度
+/// - 多种颜色渐变：支持不同的颜色映射方案
+/// </remarks>
+public class ModalAnimationController : IDisposable
     {
         #region 私有字段
         private readonly Stopwatch _stopwatch;
@@ -81,6 +110,9 @@ namespace Avalonia3DControl.Core.Animation
         private int _currentModeIndex = 0;
         private float _maxObservedDisplacement = 0.1f; // 跟踪观察到的最大位移
         private float _minObservedDisplacement = -0.1f; // 跟踪观察到的最小位移
+        
+        // 重用字典以避免每帧分配
+        private readonly Dictionary<int, Vector3> _displacementCache = new();
         private ColorGradientType _colorGradientType = ColorGradientType.Classic; // 当前颜色梯度类型
         private const float FRAME_TIME_STEP = 1.0f / 120.0f; // 固定相位步长（每周期120步）
         #endregion
@@ -430,7 +462,7 @@ namespace Avalonia3DControl.Core.Animation
             var vertices = _targetModel.Vertices;
             
             // 计算所有顶点的位移并更新观察到的范围
-            var displacements = new Dictionary<int, Vector3>();
+            _displacementCache.Clear(); // 清空缓存而不是创建新对象
             float currentMaxDisplacement = float.MinValue;
             float currentMinDisplacement = float.MaxValue;
             float currentMaxAbsDisplacement = 0f; // 当前帧的最大绝对位移
@@ -439,7 +471,7 @@ namespace Avalonia3DControl.Core.Animation
             {
                 var displacement = point.GetDisplacement(timeSeconds, modalData.Frequency);
                 displacement *= _amplificationFactor;
-                displacements[point.VertexIndex] = displacement;
+                _displacementCache[point.VertexIndex] = displacement;
                 
                 float zDisplacement = displacement.Z;
                 currentMaxDisplacement = Math.Max(currentMaxDisplacement, zDisplacement);
@@ -472,9 +504,9 @@ namespace Avalonia3DControl.Core.Animation
             {
                 var vertexIndex = point.VertexIndex * 6; // 每个顶点6个分量（位置3+颜色3）
                 
-                if (vertexIndex + 5 < vertices.Length && displacements.ContainsKey(point.VertexIndex))
+                if (vertexIndex + 5 < vertices.Length && _displacementCache.ContainsKey(point.VertexIndex))
                 {
-                    var displacement = displacements[point.VertexIndex];
+                    var displacement = _displacementCache[point.VertexIndex];
                     
                     // 更新顶点位置（原始位置 + 位移）
                     vertices[vertexIndex] = _originalVertices[vertexIndex] + displacement.X;

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Avalonia3DControl.Core.Animation;
 using Avalonia3DControl.Rendering;
+using Avalonia3DControl.Core.ErrorHandling;
 
 namespace Avalonia3DControl.UI
 {
@@ -187,8 +188,9 @@ namespace Avalonia3DControl.UI
                         return;
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    ErrorHandler.HandleRenderingException(ex, "获取OpenGL版本");
                     _isInitialized = false;
                     return;
                 }
@@ -205,8 +207,9 @@ namespace Avalonia3DControl.UI
                 }
                 _isInitialized = true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                ErrorHandler.HandleInitializationException(ex, "GradientBar初始化");
                 _isInitialized = false;
             }
         }
@@ -279,7 +282,7 @@ namespace Avalonia3DControl.UI
         {
             if (!_isInitialized)
             {
-                try { Initialize(); } catch (Exception) { return; }
+                try { Initialize(); } catch (Exception ex) { ErrorHandler.HandleRenderingException(ex, "渲染时GradientBar初始化"); return; }
                 if (!_isInitialized) return;
             }
             
@@ -347,9 +350,9 @@ namespace Avalonia3DControl.UI
                     renderState.RestoreViewport();
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // 静默处理异常
+                ErrorHandler.HandleRenderingException(ex, "GradientBar渲染");
             }
         }
 

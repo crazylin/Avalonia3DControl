@@ -173,8 +173,12 @@ namespace Avalonia3DControl.Geometry.Factories
 
         public static Model3D CreateSphere(float radius = 1.0f, int segments = 32)
         {
-            var vertices = new List<float>();
-            var indices = new List<uint>();
+            // 预计算容量以避免重分配
+            int vertexCount = (segments + 1) * (segments + 1);
+            int indexCount = segments * segments * 6;
+            
+            var vertices = new List<float>(vertexCount * 6); // 位置3 + 颜色3
+            var indices = new List<uint>(indexCount);
 
             // 生成球体顶点
             for (int i = 0; i <= segments; i++)
@@ -596,8 +600,12 @@ namespace Avalonia3DControl.Geometry.Factories
 
         public static Model3D CreateCylinder(float radius = 1.0f, float height = 2.0f, int segments = 32)
         {
-            var vertices = new List<float>();
-            var indices = new List<uint>();
+            // 预计算容量：顶部圆 + 底部圆 + 侧面
+            int vertexCount = (segments + 1) * 2 + segments * 2;
+            int indexCount = segments * 12; // 顶部 + 底部 + 侧面三角形
+            
+            var vertices = new List<float>(vertexCount * 6);
+            var indices = new List<uint>(indexCount);
 
             // 生成圆柱体顶点
             for (int i = 0; i <= segments; i++)

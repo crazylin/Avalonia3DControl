@@ -11,8 +11,22 @@ using Avalonia3DControl.Materials;
 namespace Avalonia3DControl.Core
 {
     /// <summary>
-    /// 三维场景管理类
+    /// 3D场景类，管理场景中的所有3D对象
     /// </summary>
+    /// <remarks>
+    /// Scene3D是3D渲染的核心容器，负责管理：
+    /// - 场景相机：控制视角和投影
+    /// - 光源集合：提供场景照明
+    /// - 3D模型集合：场景中的所有可渲染对象
+    /// - 背景颜色：场景的背景设置
+    /// 
+    /// 使用示例：
+    /// <code>
+    /// var scene = new Scene3D();
+    /// scene.Models.Add(GeometryFactory.CreateCube());
+    /// scene.Lights.Add(new DirectionalLight());
+    /// </code>
+    /// </remarks>
     public class Scene3D
     {
         public Camera Camera { get; set; }
@@ -23,8 +37,8 @@ namespace Avalonia3DControl.Core
         private bool _coordinateAxesVisible = false;
         
         // 独立的坐标轴模型
-        public Model3D? CoordinateAxes { get; private set; }
-        public bool ShowCoordinateAxes => _coordinateAxesVisible && CoordinateAxes != null;
+        public CoordinateAxes CoordinateAxes { get; private set; }
+        public bool ShowCoordinateAxes => _coordinateAxesVisible && CoordinateAxes.Visible;
         
         // 迷你坐标轴
         public MiniAxes MiniAxes { get; private set; }
@@ -40,8 +54,7 @@ namespace Avalonia3DControl.Core
             AddDefaultLight();
             
             // 初始化坐标轴
-            CoordinateAxes = new CoordinateAxesModel();
-            CoordinateAxes.Name = "CoordinateAxes";
+            CoordinateAxes = new CoordinateAxes();
             
             // 初始化迷你坐标轴
             MiniAxes = new MiniAxes();
@@ -89,9 +102,9 @@ namespace Avalonia3DControl.Core
             
             // 坐标轴不再作为普通模型处理，将独立渲染
             // 确保坐标轴不在普通模型列表中
-            if (CoordinateAxes != null && Models.Contains(CoordinateAxes))
+            if (CoordinateAxes.AxesModel != null && Models.Contains(CoordinateAxes.AxesModel))
             {
-                Models.Remove(CoordinateAxes);
+                Models.Remove(CoordinateAxes.AxesModel);
             }
             
             return mainModel;
@@ -104,21 +117,13 @@ namespace Avalonia3DControl.Core
         public void SetCoordinateAxesVisible(bool visible)
         {
             _coordinateAxesVisible = visible;
-            
-            if (visible)
-            {
-                // 创建坐标轴模型（如果还没有创建）
-                 if (CoordinateAxes == null)
-                 {
-                     CoordinateAxes = GeometryFactory.CreateCoordinateAxes();
-                 }
-            }
+            CoordinateAxes.Visible = visible;
             
             // 坐标轴不再作为普通模型处理，完全独立渲染
-            // 移除坐标轴从普通模型列表中（如果存在）
-            if (CoordinateAxes != null && Models.Contains(CoordinateAxes))
+            // 移除坐标轴模型从普通模型列表中（如果存在）
+            if (CoordinateAxes.AxesModel != null && Models.Contains(CoordinateAxes.AxesModel))
             {
-                Models.Remove(CoordinateAxes);
+                Models.Remove(CoordinateAxes.AxesModel);
             }
         }
 

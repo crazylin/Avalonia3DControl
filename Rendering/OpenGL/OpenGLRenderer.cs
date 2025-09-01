@@ -7,6 +7,7 @@ using Avalonia3DControl.Core.Models;
 using Avalonia3DControl.Core.Lighting;
 using Avalonia3DControl.Core.Cameras;
 using Avalonia3DControl.Core.Animation;
+using Avalonia3DControl.Core.ErrorHandling;
 using Avalonia3DControl.Materials;
 using Avalonia3DControl.UI;
 using Avalonia3DControl.Rendering;
@@ -19,9 +20,9 @@ namespace Avalonia3DControl.Rendering.OpenGL
     public class OpenGLRenderer : IDisposable
     {
         #region 私有字段
-        private ModelRenderer _modelRenderer;
+        private ModelRenderer? _modelRenderer;
         private ShaderManager _shaderManager;
-        private SceneRenderer _sceneRenderer;
+        private SceneRenderer? _sceneRenderer;
         private int _defaultTexture = 0;
         private bool _isInitialized = false;
         private GradientBar? _gradientBar;
@@ -60,7 +61,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"OpenGL渲染器初始化失败: {ex.Message}", ex);
+                ErrorHandler.HandleInitializationException(ex, "OpenGL渲染器初始化");
             }
         }
         
@@ -77,7 +78,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
             var version = GL.GetString(StringName.Version);
             if (string.IsNullOrEmpty(version))
             {
-                throw new InvalidOperationException("OpenGL上下文不可用");
+                var error = new InvalidOperationException("OpenGL上下文不可用");
+                ErrorHandler.HandleInitializationException(error, "OpenGL上下文验证");
             }
         }
         
@@ -96,7 +98,10 @@ namespace Avalonia3DControl.Rendering.OpenGL
             _modelRenderer = new ModelRenderer(_defaultTexture);
             
             // 初始化场景渲染器
-            _sceneRenderer = new SceneRenderer(_shaderManager, _modelRenderer, _gradientBar);
+            if (_modelRenderer != null)
+            {
+                _sceneRenderer = new SceneRenderer(_shaderManager, _modelRenderer, _gradientBar);
+            }
             
             // 初始化梯度条
             InitializeGradientBar();
