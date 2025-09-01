@@ -97,13 +97,6 @@ namespace Avalonia3DControl.Rendering.OpenGL
 
             // 根据渲染模式绘制
             DrawModel(model, renderData, renderMode);
-            
-            // 检查OpenGL错误
-            var error = GL.GetError();
-            if (error != ErrorCode.NoError)
-            {
-                // Handle error silently or log to debug output
-            }
 
             // 解绑VAO
             GL.BindVertexArray(0);
@@ -368,13 +361,6 @@ namespace Avalonia3DControl.Rendering.OpenGL
                         GL.DrawElements(PrimitiveType.Triangles, model.Indices.Length, DrawElementsType.UnsignedInt, 0);
                     }
                     break;
-            }
-            
-            // 检查绘制后的OpenGL错误
-            var drawError = GL.GetError();
-            if (drawError != ErrorCode.NoError)
-            {
-                // Handle error silently or log to debug output
             }
         }
 

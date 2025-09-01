@@ -22,20 +22,27 @@ namespace Avalonia3DControl.Rendering
             // 初始化默认着色器程序
             try
             {
+                // 显式绑定属性位置，确保与VAO一致
+                var attributeBindings = new Dictionary<int, string>
+                {
+                    { 0, "aPosition" },
+                    { 1, "aColor" }
+                };
+
                 // 创建顶点着色器程序
                 string vertexVertexSource = ShaderLoader.LoadRendererVertexShader();
                 string vertexFragmentSource = ShaderLoader.LoadRendererFragmentShader();
-                CreateShaderProgram("vertex", vertexVertexSource, vertexFragmentSource);
+                CreateShaderProgram("vertex", vertexVertexSource, vertexFragmentSource, attributeBindings);
                 
                 // 创建纹理着色器程序
                 string textureVertexSource = ShaderLoader.LoadTextureVertexShader();
                 string textureFragmentSource = ShaderLoader.LoadTextureFragmentShader();
-                CreateShaderProgram("texture", textureVertexSource, textureFragmentSource);
+                CreateShaderProgram("texture", textureVertexSource, textureFragmentSource, attributeBindings);
                 
                 // 创建材质着色器程序
                 string materialVertexSource = ShaderLoader.LoadMaterialVertexShader();
                 string materialFragmentSource = ShaderLoader.LoadMaterialFragmentShader();
-                CreateShaderProgram("material", materialVertexSource, materialFragmentSource);
+                CreateShaderProgram("material", materialVertexSource, materialFragmentSource, attributeBindings);
             }
             catch (Exception ex)
             {

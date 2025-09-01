@@ -109,19 +109,26 @@ namespace Avalonia3DControl
         {
             base.OnOpenGlInit(gl);
             
-            // 初始化渲染器
-            _renderer = new OpenGLRenderer();
-            _renderer.Initialize(gl);
-            
-            // 初始化相机控制器
-            _cameraController = new CameraController(Scene);
-            
-            // 初始化输入处理器
-            _inputHandler = new InputHandler(_cameraController);
-            _inputHandler.RenderRequested += () => RequestNextFrameRendering();
-            _inputHandler.FocusRequested += () => Focus();
-            
-            _isOpenGLInitialized = true;
+            try
+            {
+                // 初始化渲染器
+                _renderer = new OpenGLRenderer();
+                _renderer.Initialize(gl);
+                
+                // 初始化相机控制器
+                _cameraController = new CameraController(Scene);
+                
+                // 初始化输入处理器
+                _inputHandler = new InputHandler(_cameraController);
+                _inputHandler.RenderRequested += () => RequestNextFrameRendering();
+                _inputHandler.FocusRequested += () => Focus();
+                
+                _isOpenGLInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
         }
 
         protected override void OnOpenGlDeinit(GlInterface gl)
@@ -137,7 +144,9 @@ namespace Avalonia3DControl
         protected override void OnOpenGlRender(GlInterface gl, int fb)
         {
             if (!_isOpenGLInitialized || _renderer == null)
+            {
                 return;
+            }
 
             try
             {
@@ -152,25 +161,17 @@ namespace Avalonia3DControl
                 // 检查视口参数是否有效
                 if (pixelWidth <= 0 || pixelHeight <= 0)
                 {
-                    Debug.WriteLine($"无效的视口尺寸: {pixelWidth}x{pixelHeight}");
                     return;
                 }
                 
                 GL.Viewport(0, 0, pixelWidth, pixelHeight);
-                
-                // 检查视口设置后的OpenGL错误
-                ErrorCode error = GL.GetError();
-                if (error != ErrorCode.NoError)
-                {
-                    Debug.WriteLine($"设置视口后的OpenGL错误: {error}");
-                }
 
                 // 更新相机参数
                 UpdateCamera((float)bounds.Width / (float)bounds.Height);
 
-                // 渲染场景（包含坐标轴）
+                // 渲染场景（包含坐标轴和包围盒）
                 var coordinateAxes = Scene.ShowCoordinateAxes ? Scene.CoordinateAxes.AxesModel : null;
-                _renderer?.RenderSceneWithAxes(Scene.Camera, Scene.Models, Scene.Lights, Scene.BackgroundColor, _currentShadingMode, _currentRenderMode, coordinateAxes, Scene.MiniAxes, renderScaling);
+                _renderer?.RenderSceneWithAxes(Scene.Camera, Scene.Models, Scene.Lights, Scene.BackgroundColor, _currentShadingMode, _currentRenderMode, coordinateAxes, Scene.MiniAxes, Scene.BoundingBoxRenderer, renderScaling);
                 
                 // 渲染ROI2D覆盖层
                 _roi2DIntegration?.RenderROI2D();
@@ -295,6 +296,10 @@ namespace Avalonia3DControl
             // 订阅模型的渲染请求事件
             model.RenderRequested += () => RequestNextFrameRendering();
             Scene.Models.Add(model);
+            
+            // 自动调整相机位置以适应新添加的模型
+            _cameraController?.FitToScene();
+            
             RequestNextFrameRendering();
         }
 
@@ -313,6 +318,25 @@ namespace Avalonia3DControl
         public void ResetCamera()
         {
             _cameraController?.Reset();
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 自动调整相机位置以适应场景中的所有模型
+        /// </summary>
+        public void FitCameraToScene()
+        {
+            _cameraController?.FitToScene();
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 自动调整相机位置以适应指定模型
+        /// </summary>
+        /// <param name="model">要适应的模型</param>
+        public void FitCameraToModel(Model3D model)
+        {
+            _cameraController?.FitToModel(model);
             RequestNextFrameRendering();
         }
 
@@ -340,6 +364,26 @@ namespace Avalonia3DControl
             Scene.SetCoordinateAxesVisible(show);
             RequestNextFrameRendering();
         }
+        
+        /// <summary>
+        /// 设置包围盒可见性
+        /// </summary>
+        /// <param name="show">是否显示包围盒</param>
+        public void SetBoundingBoxVisible(bool show)
+        {
+            Scene.SetBoundingBoxVisible(show);
+            RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 设置包围盒坐标刻度可见性
+        /// </summary>
+        /// <param name="show">是否显示坐标刻度</param>
+        public void SetBoundingBoxTicksVisible(bool show)
+        {
+            Scene.SetBoundingBoxTicksVisible(show);
+            RequestNextFrameRendering();
+        }
 
         public void SetCurrentModel(string? modelType)
         {
@@ -354,7 +398,12 @@ namespace Avalonia3DControl
                 {
                     // 订阅模型的渲染请求事件
                     model.RenderRequested += () => RequestNextFrameRendering();
-                    AddModel(model);
+                    Scene.Models.Add(model);
+                    
+                    // 自动调整相机位置以适应新模型
+                    _cameraController?.FitToModel(model);
+                    
+                    RequestNextFrameRendering();
                 }
             }
         }
@@ -364,6 +413,8 @@ namespace Avalonia3DControl
         /// </summary>
         public void SwitchToOrthographic()
         {
+            // 在切换投影模式前，先根据当前透视缩放匹配等效的正交大小
+            _cameraController?.MatchScaleToOrthographic();
             Scene.Camera.SwitchToOrthographic();
             RequestNextFrameRendering();
         }
@@ -373,6 +424,8 @@ namespace Avalonia3DControl
         /// </summary>
         public void SwitchToPerspective()
         {
+            // 在切换投影模式前，先根据当前正交大小匹配等效的透视缩放
+            _cameraController?.MatchScaleToPerspective();
             Scene.Camera.SwitchToPerspective();
             RequestNextFrameRendering();
         }

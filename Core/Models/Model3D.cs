@@ -137,6 +137,55 @@ namespace Avalonia3DControl.Core.Models
 
             return translation * rotationZ * rotationY * rotationX * scale;
         }
+        
+        /// <summary>
+        /// 计算模型的边界框（在世界坐标系中）
+        /// </summary>
+        /// <returns>边界框的最小和最大坐标</returns>
+        public (Vector3 Min, Vector3 Max) GetBoundingBox()
+        {
+            if (Vertices == null || Vertices.Length == 0)
+            {
+                return (Vector3.Zero, Vector3.Zero);
+            }
+            
+            var min = new Vector3(float.MaxValue);
+            var max = new Vector3(float.MinValue);
+            
+            // 遍历所有顶点（假设顶点格式为 x,y,z,r,g,b）
+            for (int i = 0; i < Vertices.Length; i += 6)
+            {
+                var vertex = new Vector3(Vertices[i], Vertices[i + 1], Vertices[i + 2]);
+                
+                // 应用模型变换矩阵
+                var transformedVertex = Vector3.TransformPosition(vertex, GetModelMatrix());
+                
+                min = Vector3.ComponentMin(min, transformedVertex);
+                max = Vector3.ComponentMax(max, transformedVertex);
+            }
+            
+            return (min, max);
+        }
+        
+        /// <summary>
+        /// 获取模型的中心点（在世界坐标系中）
+        /// </summary>
+        /// <returns>模型中心点</returns>
+        public Vector3 GetCenter()
+        {
+            var (min, max) = GetBoundingBox();
+            return (min + max) * 0.5f;
+        }
+        
+        /// <summary>
+        /// 获取模型的尺寸
+        /// </summary>
+        /// <returns>模型在各轴上的尺寸</returns>
+        public Vector3 GetSize()
+        {
+            var (min, max) = GetBoundingBox();
+            return max - min;
+        }
     }
 
 

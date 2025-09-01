@@ -214,8 +214,9 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// </summary>
         /// <param name="coordinateAxes">可选的坐标轴模型</param>
         /// <param name="miniAxes">可选的迷你坐标轴</param>
+        /// <param name="boundingBoxRenderer">可选的包围盒渲染器</param>
         /// <param name="dpiScale">DPI缩放比例</param>
-        public void RenderSceneWithAxes(Camera camera, List<Model3D> models, List<Light> lights, Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode, Model3D? coordinateAxes = null, MiniAxes? miniAxes = null, double dpiScale = 1.0)
+        public void RenderSceneWithAxes(Camera camera, List<Model3D> models, List<Light> lights, Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode, Model3D? coordinateAxes = null, MiniAxes? miniAxes = null, BoundingBoxRenderer? boundingBoxRenderer = null, double dpiScale = 1.0)
         {
             if (!_isInitialized || _sceneRenderer == null) 
             {
@@ -223,7 +224,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
             }
             
             // 委托给SceneRenderer处理复杂的渲染流程
-            _sceneRenderer.RenderScene(camera, models, lights, backgroundColor, shadingMode, renderMode, coordinateAxes, miniAxes, dpiScale);
+            _sceneRenderer.RenderScene(camera, models, lights, backgroundColor, shadingMode, renderMode, coordinateAxes, miniAxes, boundingBoxRenderer, dpiScale);
         }
 
         /// <summary>

@@ -42,6 +42,7 @@ namespace Avalonia3DControl.UI
             SetupModelSelectionHandlers();
             SetupCoordinateAxesHandler();
             SetupMiniAxesHandlers();
+            SetupBoundingBoxHandlers();
             SetupGradientBarHandlers();
             SetupModalAnimationPanel();
         }
@@ -234,6 +235,30 @@ namespace Avalonia3DControl.UI
                 showCoordinateAxesCheckBox.IsCheckedChanged += (s, e) =>
                 {
                     _openGLControl.SetCoordinateAxesVisible(showCoordinateAxesCheckBox.IsChecked == true);
+                };
+            }
+        }
+        
+        /// <summary>
+        /// 设置包围盒显示事件处理器
+        /// </summary>
+        private void SetupBoundingBoxHandlers()
+        {
+            var showBoundingBoxCheckBox = _window.FindControl<CheckBox>("ShowBoundingBoxCheckBox");
+            if (showBoundingBoxCheckBox != null)
+            {
+                showBoundingBoxCheckBox.IsCheckedChanged += (s, e) =>
+                {
+                    _openGLControl.SetBoundingBoxVisible(showBoundingBoxCheckBox.IsChecked == true);
+                };
+            }
+            
+            var showBoundingBoxTicksCheckBox = _window.FindControl<CheckBox>("ShowBoundingBoxTicksCheckBox");
+            if (showBoundingBoxTicksCheckBox != null)
+            {
+                showBoundingBoxTicksCheckBox.IsCheckedChanged += (s, e) =>
+                {
+                    _openGLControl.SetBoundingBoxTicksVisible(showBoundingBoxTicksCheckBox.IsChecked == true);
                 };
             }
         }

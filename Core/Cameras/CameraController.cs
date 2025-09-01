@@ -38,8 +38,8 @@ namespace Avalonia3DControl.Core.Cameras
         private float _rotationY = 0.0f;
         private float _zoom = 1.0f;
         private float _targetZoom = 1.0f;
-        private float _orthographicSize = 5.0f;
-        private float _targetOrthographicSize = 5.0f;
+        private float _orthographicSize = 0.5f;
+        private float _targetOrthographicSize = 0.5f;
         private Vector3 _cameraOffset = Vector3.Zero;
         private Scene3D _scene;
         #endregion
@@ -153,9 +153,201 @@ namespace Avalonia3DControl.Core.Cameras
             _rotationY = 0.0f;
             _zoom = 1.0f;
             _targetZoom = 1.0f;
-            _orthographicSize = 5.0f;
-            _targetOrthographicSize = 5.0f;
+            _orthographicSize = 0.5f;
+            _targetOrthographicSize = 0.5f;
             _cameraOffset = Vector3.Zero;
+            
+            OnCameraChanged();
+        }
+        
+        /// <summary>
+        /// 自动调整相机位置以适应模型
+        /// </summary>
+        /// <param name="model">要适应的模型</param>
+        /// <param name="paddingFactor">边距因子，默认为1.2（即增加20%的边距）</param>
+        public void FitToModel(Core.Models.Model3D model, float paddingFactor = 1.2f)
+        {
+            if (model == null || _scene?.Camera == null)
+                return;
+                
+            var modelSize = model.GetSize();
+            var modelCenter = model.GetCenter();
+            
+            // 如果模型尺寸为零，使用默认设置
+            if (modelSize.Length < 0.001f)
+            {
+                Reset();
+                return;
+            }
+            
+            // 计算模型的最大尺寸
+            float maxSize = Math.Max(Math.Max(modelSize.X, modelSize.Y), modelSize.Z);
+            
+            if (_scene.Camera.Mode == ProjectionMode.Perspective)
+            {
+                // 透视投影模式：根据视野角度计算合适的距离
+                float fov = _scene.Camera.FieldOfView;
+                float distance = (maxSize * paddingFactor) / (2.0f * (float)Math.Tan(fov * 0.5f));
+                
+                // 设置缩放值，使相机距离适应模型
+                _targetZoom = distance / CAMERA_DISTANCE;
+                _zoom = _targetZoom;
+            }
+            else
+            {
+                // 正交投影模式：基于相机方向将模型包围盒投影到屏幕平面，计算所需视图高度
+                var (min, max) = model.GetBoundingBox();
+                var corners = new Vector3[]
+                {
+                    new Vector3(min.X, min.Y, min.Z),
+                    new Vector3(min.X, min.Y, max.Z),
+                    new Vector3(min.X, max.Y, min.Z),
+                    new Vector3(min.X, max.Y, max.Z),
+                    new Vector3(max.X, min.Y, min.Z),
+                    new Vector3(max.X, min.Y, max.Z),
+                    new Vector3(max.X, max.Y, min.Z),
+                    new Vector3(max.X, max.Y, max.Z)
+                };
+
+                var dir = GetCameraDirection();
+                var worldUp = Vector3.UnitY;
+                var right = Vector3.Cross(dir, worldUp);
+                if (right.Length < 1e-6f) right = Vector3.UnitX; else right.Normalize();
+                var upOnScreen = Vector3.Cross(right, dir).Normalized();
+
+                float minR = float.PositiveInfinity, maxR = float.NegativeInfinity;
+                float minU = float.PositiveInfinity, maxU = float.NegativeInfinity;
+
+                foreach (var c in corners)
+                {
+                    var v = c - modelCenter; // 使用模型中心作为目标点
+                    float r = Vector3.Dot(v, right);
+                    float u = Vector3.Dot(v, upOnScreen);
+                    if (r < minR) minR = r; if (r > maxR) maxR = r;
+                    if (u < minU) minU = u; if (u > maxU) maxU = u;
+                }
+
+                float width = maxR - minR;
+                float height = maxU - minU;
+                float aspect = _scene.Camera.AspectRatio > 0.0001f ? _scene.Camera.AspectRatio : 1.0f;
+
+                // 对较小模型（例如单位立方体）给予稍大的边距，避免看起来偏大
+                float baseSize = Math.Max(height, width / aspect);
+                float effectivePadding = paddingFactor;
+                if (baseSize <= 1.5f)
+                    effectivePadding = Math.Max(effectivePadding, 1.3f);
+
+                _targetOrthographicSize = baseSize * effectivePadding;
+                _orthographicSize = _targetOrthographicSize;
+            }
+            
+            // 设置相机偏移，使模型居中
+            _cameraOffset = modelCenter;
+            
+            // 保持当前的旋转角度，只调整缩放和位置
+            OnCameraChanged();
+        }
+        
+        /// <summary>
+        /// 自动调整相机位置以适应场景中的所有模型
+        /// </summary>
+        /// <param name="paddingFactor">边距因子，默认为1.2（即增加20%的边距）</param>
+        public void FitToScene(float paddingFactor = 1.2f)
+        {
+            if (_scene?.Models == null || _scene.Models.Count == 0)
+            {
+                Reset();
+                return;
+            }
+            
+            // 计算所有模型的总边界框
+            var overallMin = new Vector3(float.MaxValue);
+            var overallMax = new Vector3(float.MinValue);
+            bool hasValidModels = false;
+            
+            foreach (var model in _scene.Models)
+            {
+                if (model.Visible)
+                {
+                    var (min, max) = model.GetBoundingBox();
+                    if (min != Vector3.Zero || max != Vector3.Zero)
+                    {
+                        overallMin = Vector3.ComponentMin(overallMin, min);
+                        overallMax = Vector3.ComponentMax(overallMax, max);
+                        hasValidModels = true;
+                    }
+                }
+            }
+            
+            if (!hasValidModels)
+            {
+                Reset();
+                return;
+            }
+            
+            // 计算场景的中心和尺寸
+            var sceneCenter = (overallMin + overallMax) * 0.5f;
+            var sceneSize = overallMax - overallMin;
+            float maxSize = Math.Max(Math.Max(sceneSize.X, sceneSize.Y), sceneSize.Z);
+            
+            if (_scene.Camera.Mode == ProjectionMode.Perspective)
+            {
+                // 透视投影模式
+                float fov = _scene.Camera.FieldOfView;
+                float distance = (maxSize * paddingFactor) / (2.0f * (float)Math.Tan(fov * 0.5f));
+                
+                _targetZoom = distance / CAMERA_DISTANCE;
+                _zoom = _targetZoom;
+            }
+            else
+            {
+                // 正交投影模式：基于相机方向将场景包围盒投影到屏幕平面，计算所需视图高度
+                var corners = new Vector3[]
+                {
+                    new Vector3(overallMin.X, overallMin.Y, overallMin.Z),
+                    new Vector3(overallMin.X, overallMin.Y, overallMax.Z),
+                    new Vector3(overallMin.X, overallMax.Y, overallMin.Z),
+                    new Vector3(overallMin.X, overallMax.Y, overallMax.Z),
+                    new Vector3(overallMax.X, overallMin.Y, overallMin.Z),
+                    new Vector3(overallMax.X, overallMin.Y, overallMax.Z),
+                    new Vector3(overallMax.X, overallMax.Y, overallMin.Z),
+                    new Vector3(overallMax.X, overallMax.Y, overallMax.Z)
+                };
+
+                var dir = GetCameraDirection();
+                var worldUp = Vector3.UnitY;
+                var right = Vector3.Cross(dir, worldUp);
+                if (right.Length < 1e-6f) right = Vector3.UnitX; else right.Normalize();
+                var upOnScreen = Vector3.Cross(right, dir).Normalized();
+
+                float minR = float.PositiveInfinity, maxR = float.NegativeInfinity;
+                float minU = float.PositiveInfinity, maxU = float.NegativeInfinity;
+
+                foreach (var c in corners)
+                {
+                    var v = c - sceneCenter; // 使用场景中心作为目标点
+                    float r = Vector3.Dot(v, right);
+                    float u = Vector3.Dot(v, upOnScreen);
+                    if (r < minR) minR = r; if (r > maxR) maxR = r;
+                    if (u < minU) minU = u; if (u > maxU) maxU = u;
+                }
+
+                float width = maxR - minR;
+                float height = maxU - minU;
+                float aspect = _scene.Camera.AspectRatio > 0.0001f ? _scene.Camera.AspectRatio : 1.0f;
+
+                // 对较小场景给予稍大的边距，避免看起来偏大
+                float baseSize = Math.Max(height, width / aspect);
+                float effectivePadding = paddingFactor;
+                if (baseSize <= 1.5f)
+                    effectivePadding = Math.Max(effectivePadding, 1.3f);
+
+                _targetOrthographicSize = baseSize * effectivePadding;
+                _orthographicSize = _targetOrthographicSize;
+            }
+            
+            // 设置相机偏移，使场景居中
+            _cameraOffset = sceneCenter;
             
             OnCameraChanged();
         }
@@ -191,6 +383,39 @@ namespace Avalonia3DControl.Core.Cameras
             
             return needsContinuousRendering;
         }
+
+        /// <summary>
+        /// 切换到正交投影时，根据当前透视缩放匹配等效的正交视图高度，保持屏幕显示比例一致
+        /// </summary>
+        public void MatchScaleToOrthographic()
+        {
+            if (_scene?.Camera == null) return;
+            // 透视下：视口高度 = 2 * tan(fov/2) * 距离
+            float fov = _scene.Camera.FieldOfView;
+            float distance = CAMERA_DISTANCE * _zoom;
+            float orthoSize = 2.0f * (float)Math.Tan(fov * 0.5f) * distance;
+            _targetOrthographicSize = Math.Max(0.01f, orthoSize);
+            _orthographicSize = _targetOrthographicSize;
+            OnCameraChanged();
+        }
+
+        /// <summary>
+        /// 切换到透视投影时，根据当前正交视图高度匹配等效的透视缩放，保持屏幕显示比例一致
+        /// </summary>
+        public void MatchScaleToPerspective()
+        {
+            if (_scene?.Camera == null) return;
+            // 正交下：等效透视距离 = height / (2 * tan(fov/2))
+            float fov = _scene.Camera.FieldOfView;
+            float orthoSize = Math.Max(0.01f, _orthographicSize);
+            float distance = orthoSize / (2.0f * (float)Math.Tan(fov * 0.5f));
+            float zoom = distance / CAMERA_DISTANCE;
+            zoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, zoom));
+            _targetZoom = zoom;
+            _zoom = _targetZoom;
+            OnCameraChanged();
+        }
+
         #endregion
 
         #region 私有方法
@@ -325,6 +550,7 @@ namespace Avalonia3DControl.Core.Cameras
         {
             CameraChanged?.Invoke();
         }
+
         #endregion
     }
 }

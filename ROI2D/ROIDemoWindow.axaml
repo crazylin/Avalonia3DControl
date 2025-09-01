@@ -100,6 +100,15 @@
                     </StackPanel>
                 </Expander>
                 
+                <!-- 背景设置 -->
+                <Expander Header="背景设置" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <Button Name="LoadBackgroundButton" Content="加载背景图片" Margin="2" Background="#FF81C784" />
+                        <Button Name="ClearBackgroundButton" Content="清除背景" Margin="2" />
+                        <TextBlock Name="BackgroundInfoText" Text="当前: 默认渐变背景" FontSize="10" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
                 <!-- 导入导出 -->
                 <Expander Header="导入导出" IsExpanded="False">
                     <StackPanel Margin="5">

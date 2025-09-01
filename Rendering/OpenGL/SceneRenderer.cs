@@ -37,7 +37,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// </summary>
         public void RenderScene(Camera camera, List<Model3D> models, List<Light> lights, 
             Vector3 backgroundColor, ShadingMode shadingMode, RenderMode renderMode,
-            Model3D? coordinateAxes = null, MiniAxes? miniAxes = null, double dpiScale = 1.0)
+            Model3D? coordinateAxes = null, MiniAxes? miniAxes = null, BoundingBoxRenderer? boundingBoxRenderer = null, double dpiScale = 1.0)
         {
             // 更新动画
             UpdateAnimations(models);
@@ -62,6 +62,12 @@ namespace Avalonia3DControl.Rendering.OpenGL
             
             // 渲染所有模型
             RenderModels(models, shaderProgram);
+            
+            // 渲染包围盒
+            if (boundingBoxRenderer != null && boundingBoxRenderer.Visible)
+            {
+                RenderBoundingBox(boundingBoxRenderer, models, camera, shaderProgram);
+            }
             
             // 渲染迷你坐标轴
             if (miniAxes != null && miniAxes.Visible && miniAxes.AxesModel != null)
@@ -269,6 +275,22 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 // 重新启用深度测试
                 GL.Enable(EnableCap.DepthTest);
             }
+        }
+        
+        /// <summary>
+        /// 渲染包围盒
+        /// </summary>
+        private void RenderBoundingBox(BoundingBoxRenderer boundingBoxRenderer, List<Model3D> models, Camera camera, int shaderProgram)
+        {
+            if (models.Count == 0) return;
+            
+            // 初始化包围盒渲染器
+            boundingBoxRenderer.Initialize();
+            
+            // 渲染包围盒
+            var viewMatrix = camera.GetViewMatrix();
+            var projectionMatrix = camera.GetProjectionMatrix();
+            boundingBoxRenderer.Render(models, shaderProgram, viewMatrix, projectionMatrix);
         }
 
         /// <summary>

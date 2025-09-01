@@ -27,11 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="ROI2D\Readme.md" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="ROI2D\Readme.md" />
+    <None Include="ROI2D\Readme.md" />
   </ItemGroup>
 
   <ItemGroup>

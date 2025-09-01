@@ -17,6 +17,7 @@ namespace Avalonia3DControl.ROI2D
         private readonly OpenGL3DControl _control3D;
         private ROI2DOverlay? _roiOverlay;
         private CoordinateMapper _coordinateMapper;
+        private ImageBackgroundManager? _backgroundManager;
         private bool _isEnabled;
         private bool _isInitialized;
         #endregion
@@ -90,6 +91,11 @@ namespace Avalonia3DControl.ROI2D
         /// 坐标映射器
         /// </summary>
         public CoordinateMapper CoordinateMapper => _coordinateMapper;
+        
+        /// <summary>
+        /// 背景图片管理器
+        /// </summary>
+        public ImageBackgroundManager? BackgroundManager => _backgroundManager;
         #endregion
 
         #region 初始化方法
@@ -103,12 +109,18 @@ namespace Avalonia3DControl.ROI2D
 
             try
             {
+                // 创建背景管理器
+                _backgroundManager = new ImageBackgroundManager();
+                
                 // 创建ROI渲染器和覆盖层
                 var renderer = new ROI2DRenderer();
                 _roiOverlay = new ROI2DOverlay(_coordinateMapper, renderer);
                 
                 // 订阅ROI事件
                 SubscribeROIEvents();
+                
+                // 订阅背景管理器事件
+                SubscribeBackgroundEvents();
                 
                 _isInitialized = true;
             }
@@ -125,8 +137,11 @@ namespace Avalonia3DControl.ROI2D
         {
             DisableROI2D();
             UnsubscribeROIEvents();
+            UnsubscribeBackgroundEvents();
             _roiOverlay?.Dispose();
             _roiOverlay = null;
+            _backgroundManager?.Dispose();
+            _backgroundManager = null;
             _isInitialized = false;
         }
         #endregion
@@ -469,6 +484,52 @@ namespace Avalonia3DControl.ROI2D
         private void Unsubscribe3DControlEvents()
         {
             // 对应的取消订阅逻辑
+        }
+        
+        /// <summary>
+        /// 订阅背景管理器事件
+        /// </summary>
+        private void SubscribeBackgroundEvents()
+        {
+            if (_backgroundManager == null) return;
+
+            _backgroundManager.ImageLoaded += OnBackgroundImageLoaded;
+            _backgroundManager.Error += OnBackgroundError;
+        }
+
+        /// <summary>
+        /// 取消订阅背景管理器事件
+        /// </summary>
+        private void UnsubscribeBackgroundEvents()
+        {
+            if (_backgroundManager == null) return;
+
+            _backgroundManager.ImageLoaded -= OnBackgroundImageLoaded;
+            _backgroundManager.Error -= OnBackgroundError;
+        }
+        
+        /// <summary>
+        /// 背景图片加载完成事件处理
+        /// </summary>
+        private void OnBackgroundImageLoaded(object? sender, ImageLoadedEventArgs e)
+        {
+            // 更新坐标映射器的背景尺寸
+            if (_coordinateMapper != null)
+            {
+                _coordinateMapper.SetBackgroundSize(e.Width, e.Height);
+            }
+            
+            // 请求重新渲染
+            _control3D.RequestNextFrameRendering();
+        }
+        
+        /// <summary>
+        /// 背景错误事件处理
+        /// </summary>
+        private void OnBackgroundError(object? sender, ImageErrorEventArgs e)
+        {
+            // 可以在这里处理背景加载错误
+            System.Diagnostics.Debug.WriteLine($"Background image error: {e.Message}");
         }
 
         // ROI事件转发方法

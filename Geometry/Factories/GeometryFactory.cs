@@ -163,7 +163,10 @@ namespace Avalonia3DControl.Geometry.Factories
                 Vertices = vertices,
                 Indices = indices,
                 VertexCount = vertices.Length / 6, // 立方体有24个顶点（每个面4个），每个顶点6个分量
-                IndexCount = indices.Length
+                IndexCount = indices.Length,
+                Position = new Vector3(0.0f, 0.0f, 0.0f),
+                Scale = new Vector3(1.0f, 1.0f, 1.0f),
+                Visible = true
             };
             
             // 设置塑料材质

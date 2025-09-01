@@ -49,9 +49,9 @@ namespace Avalonia3DControl.Core.Cameras
             AspectRatio = 1.0f;
             NearPlane = 0.1f;
             FarPlane = 100.0f;
-            Mode = ProjectionMode.Orthographic;
+            Mode = ProjectionMode.Orthographic; // 默认使用正交投影模式
             ViewLock = ViewLockMode.None;
-            OrthographicSize = 5.0f; // 2D模式下的视野大小
+            OrthographicSize = 0.5f; // 2D模式下的视野大小，进一步减小以获得更合适的显示尺寸
         }
 
         public Matrix4 GetViewMatrix()

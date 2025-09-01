@@ -101,6 +101,10 @@
                             <CheckBox x:Name="ShowCoordinateAxesCheckBox" Content="显示坐标轴 (XYZ)" Margin="0,0,8,0"/>
                             <CheckBox x:Name="ShowMiniAxesCheckBox" Content="显示迷你坐标轴" IsChecked="True"/>
                         </WrapPanel>
+                        <WrapPanel>
+                            <CheckBox x:Name="ShowBoundingBoxCheckBox" Content="显示包围盒" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="ShowBoundingBoxTicksCheckBox" Content="显示坐标刻度" IsChecked="True"/>
+                        </WrapPanel>
                         <TextBlock Text="位置选择:"/>
                         <WrapPanel>
                             <RadioButton x:Name="MiniAxesTopLeftRadio" Content="左上角" GroupName="MiniAxesPosition" Margin="0,0,8,0"/>

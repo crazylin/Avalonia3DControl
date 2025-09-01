@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Avalonia.Platform.Storage;
 
 namespace Avalonia3DControl.ROI2D
 {
@@ -62,6 +63,10 @@ namespace Avalonia3DControl.ROI2D
         private Button? _saveROIButton;
         private Button? _loadROIButton;
         private Button? _exportImageButton;
+        
+        private Button? _loadBackgroundButton;
+        private Button? _clearBackgroundButton;
+        private TextBlock? _backgroundInfoText;
         
         private ContentControl? _viewportContainer;
         private TextBlock? _statusText;
@@ -132,6 +137,10 @@ namespace Avalonia3DControl.ROI2D
             _loadROIButton = this.FindControl<Button>("LoadROIButton");
             _exportImageButton = this.FindControl<Button>("ExportImageButton");
             
+            _loadBackgroundButton = this.FindControl<Button>("LoadBackgroundButton");
+            _clearBackgroundButton = this.FindControl<Button>("ClearBackgroundButton");
+            _backgroundInfoText = this.FindControl<TextBlock>("BackgroundInfoText");
+            
             _viewportContainer = this.FindControl<ContentControl>("ViewportContainer");
             _statusText = this.FindControl<TextBlock>("StatusText");
             _coordinateText = this.FindControl<TextBlock>("CoordinateText");
@@ -158,11 +167,62 @@ namespace Avalonia3DControl.ROI2D
                 _roiIntegration.ROIChanged += OnROIChanged;
                 _roiIntegration.SelectionChanged += OnSelectionChanged;
                 
+                // 初始化背景管理器并加载默认背景
+                InitializeBackground();
+                
                 UpdateStatus("ROI系统初始化完成");
             }
             catch (Exception ex)
             {
                 UpdateStatus($"ROI系统初始化失败: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// 初始化背景管理器
+        /// </summary>
+        private void InitializeBackground()
+        {
+            try
+            {
+                // 加载默认的测试背景图片
+                if (_roiIntegration?.BackgroundManager != null)
+                {
+                    // 使用空路径会生成默认的渐变背景
+                    _roiIntegration.BackgroundManager.LoadImage("");
+                    UpdateStatus("背景图片加载完成");
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"背景图片加载失败: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// 加载自定义背景图片
+        /// </summary>
+        /// <param name="imagePath">图片文件路径</param>
+        public void LoadBackgroundImage(string imagePath)
+        {
+            try
+            {
+                if (_roiIntegration?.BackgroundManager != null)
+                {
+                    bool success = _roiIntegration.BackgroundManager.LoadImage(imagePath);
+                    if (success)
+                    {
+                        UpdateStatus($"背景图片加载成功: {imagePath}");
+                    }
+                    else
+                    {
+                        UpdateStatus($"背景图片加载失败: {imagePath}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"加载背景图片时发生错误: {ex.Message}");
             }
         }
         
@@ -212,6 +272,10 @@ namespace Avalonia3DControl.ROI2D
             if (_zoomInButton != null) _zoomInButton.Click += OnZoomIn;
             if (_zoomOutButton != null) _zoomOutButton.Click += OnZoomOut;
             if (_resetViewButton != null) _resetViewButton.Click += OnResetView;
+            
+            // 背景设置事件
+            if (_loadBackgroundButton != null) _loadBackgroundButton.Click += OnLoadBackground;
+            if (_clearBackgroundButton != null) _clearBackgroundButton.Click += OnClearBackground;
             
             // 导入导出事件
             if (_saveROIButton != null) _saveROIButton.Click += OnSaveROI;
@@ -659,6 +723,82 @@ namespace Avalonia3DControl.ROI2D
             catch (Exception ex)
             {
                 UpdateStatus($"导出图像失败: {ex.Message}");
+            }
+        }
+        
+        #endregion
+        
+        #region 背景设置
+        
+        private async void OnLoadBackground(object? sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 使用Avalonia的StorageProvider API
+                var storageProvider = StorageProvider;
+                if (storageProvider == null)
+                {
+                    UpdateStatus("无法访问文件系统");
+                    return;
+                }
+                
+                var fileTypes = new List<FilePickerFileType>
+                {
+                    new("图片文件")
+                    {
+                        Patterns = new[] { "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif" }
+                    },
+                    FilePickerFileTypes.All
+                };
+                
+                var options = new FilePickerOpenOptions
+                {
+                    Title = "选择背景图片",
+                    AllowMultiple = false,
+                    FileTypeFilter = fileTypes
+                };
+                
+                var result = await storageProvider.OpenFilePickerAsync(options);
+                if (result != null && result.Count > 0)
+                {
+                    string imagePath = result[0].Path.LocalPath;
+                    LoadBackgroundImage(imagePath);
+                    
+                    // 更新背景信息显示
+                    if (_backgroundInfoText != null)
+                    {
+                        var fileName = System.IO.Path.GetFileName(imagePath);
+                        _backgroundInfoText.Text = $"当前: {fileName}";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"选择背景图片失败: {ex.Message}");
+            }
+        }
+        
+        private void OnClearBackground(object? sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 清除背景，恢复默认渐变背景
+                if (_roiIntegration?.BackgroundManager != null)
+                {
+                    _roiIntegration.BackgroundManager.LoadImage(""); // 空路径加载默认背景
+                    
+                    // 更新背景信息显示
+                    if (_backgroundInfoText != null)
+                    {
+                        _backgroundInfoText.Text = "当前: 默认渐变背景";
+                    }
+                    
+                    UpdateStatus("已恢复默认背景");
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"清除背景失败: {ex.Message}");
             }
         }
         

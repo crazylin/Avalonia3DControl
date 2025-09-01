@@ -7,6 +7,7 @@ using Avalonia3DControl.Core.Models;
 using Avalonia3DControl.Core.Cameras;
 using Avalonia3DControl.Geometry.Factories;
 using Avalonia3DControl.Materials;
+using Avalonia3DControl.Rendering.OpenGL;
 
 namespace Avalonia3DControl.Core
 {
@@ -42,6 +43,9 @@ namespace Avalonia3DControl.Core
         
         // 迷你坐标轴
         public MiniAxes MiniAxes { get; private set; }
+        
+        // 包围盒渲染器
+        public BoundingBoxRenderer BoundingBoxRenderer { get; private set; }
 
         public Scene3D()
         {
@@ -58,6 +62,9 @@ namespace Avalonia3DControl.Core
             
             // 初始化迷你坐标轴
             MiniAxes = new MiniAxes();
+            
+            // 初始化包围盒渲染器
+            BoundingBoxRenderer = new BoundingBoxRenderer();
         }
         
         /// <summary>
@@ -125,6 +132,24 @@ namespace Avalonia3DControl.Core
             {
                 Models.Remove(CoordinateAxes.AxesModel);
             }
+        }
+        
+        /// <summary>
+        /// 设置包围盒显示状态
+        /// </summary>
+        /// <param name="visible">是否显示包围盒</param>
+        public void SetBoundingBoxVisible(bool visible)
+        {
+            BoundingBoxRenderer.Visible = visible;
+        }
+        
+        /// <summary>
+        /// 设置包围盒坐标刻度显示状态
+        /// </summary>
+        /// <param name="visible">是否显示坐标刻度</param>
+        public void SetBoundingBoxTicksVisible(bool visible)
+        {
+            BoundingBoxRenderer.ShowAxisTicks = visible;
         }
 
         private void AddDefaultLight()

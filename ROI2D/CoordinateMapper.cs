@@ -306,5 +306,17 @@ namespace Avalonia3DControl.ROI2D
             
             return 0.0f;
         }
+        
+        /// <summary>
+        /// 设置背景图片尺寸，用于更新视口参数
+        /// </summary>
+        /// <param name="width">背景图片宽度</param>
+        /// <param name="height">背景图片高度</param>
+        public void SetBackgroundSize(int width, int height)
+        {
+            // 更新视口尺寸以匹配背景图片
+            _viewport = new Vector4(_viewport.X, _viewport.Y, width, height);
+            _matricesValid = false;
+        }
     }
 }

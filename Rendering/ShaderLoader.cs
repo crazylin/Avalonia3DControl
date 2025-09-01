@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace Avalonia3DControl.Rendering
 {
@@ -9,6 +10,28 @@ namespace Avalonia3DControl.Rendering
     /// </summary>
     public static class ShaderLoader
     {
+        /// <summary>
+        /// 获取当前平台的着色器目录前缀
+        /// </summary>
+        private static string GetPlatformShaderPrefix()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return "macOS";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return "Windows";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return "Linux";
+            }
+            else
+            {
+                return "Windows"; // 默认使用Windows版本
+            }
+        }
         /// <summary>
         /// 从嵌入资源中加载着色器代码
         /// </summary>
@@ -19,12 +42,25 @@ namespace Avalonia3DControl.Rendering
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
+                var platformPrefix = GetPlatformShaderPrefix();
+                
+                // 首先尝试加载平台特定的着色器
+                var platformResourceName = $"Avalonia3DControl.Shaders.{platformPrefix}.{shaderPath.Replace('/', '.').Replace('\\', '.')}".Replace(".glsl", ".glsl");
+                
+                using var platformStream = assembly.GetManifestResourceStream(platformResourceName);
+                if (platformStream != null)
+                {
+                    using var platformReader = new StreamReader(platformStream);
+                    return platformReader.ReadToEnd();
+                }
+                
+                // 如果平台特定版本不存在，回退到通用版本
                 var resourceName = $"Avalonia3DControl.Shaders.{shaderPath.Replace('/', '.').Replace('\\', '.')}".Replace(".glsl", ".glsl");
                 
                 using var stream = assembly.GetManifestResourceStream(resourceName);
                 if (stream == null)
                 {
-                    throw new FileNotFoundException($"找不到着色器资源: {resourceName}");
+                    throw new FileNotFoundException($"找不到着色器资源: {resourceName} 或 {platformResourceName}");
                 }
                 
                 using var reader = new StreamReader(stream);

@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -16,7 +17,9 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new ROIDemoWindow();
+            Console.WriteLine("[App] 开始创建MainWindow");
+            desktop.MainWindow = new MainWindow();
+            Console.WriteLine("[App] MainWindow创建完成");
         }
 
         base.OnFrameworkInitializationCompleted();
