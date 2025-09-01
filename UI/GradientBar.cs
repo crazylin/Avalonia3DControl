@@ -3,7 +3,6 @@ using OpenTK.Mathematics;
 using System;
 using System.Collections.Generic;
 using Avalonia3DControl.Core.Animation;
-using System.IO;
 using Avalonia3DControl.Rendering;
 
 namespace Avalonia3DControl.UI
@@ -23,98 +22,149 @@ namespace Avalonia3DControl.UI
     public class GradientBar : IDisposable
     {
         #region 私有字段
-        private int _vao;
-        private int _vbo;
-        private int _ebo;
-        private int _shaderProgram;
+        private ShaderManager? _shaderManager;
+        private GeometryRenderer? _geometryRenderer;
         private bool _isInitialized = false;
         private bool _disposed = false;
         
-        // 刻度线/文字渲染
-        private int _lineShaderProgram;
-        private int _lineVao;
-        private int _lineVbo;
-        private bool _lineResourcesCreated = false;
+        // 渲染状态缓存
         private float _lastLeft, _lastRight, _lastTop, _lastBottom;
         
-        // 统一日志：控制台 + 文件
-        private static readonly object _logLock = new object();
-        private static readonly string _logPath = Path.Combine(AppContext.BaseDirectory, "gradientbar.log");
-        private static void Log(string msg)
-        {
-            var line = $"[{DateTime.Now:HH:mm:ss.fff}] [GradientBar] {msg}";
-            try { Console.WriteLine(line); } catch { }
-            try { lock (_logLock) { File.AppendAllText(_logPath, line + Environment.NewLine); } } catch { }
-        }
+        // 着色器程序名称常量
+        private const string GRADIENT_SHADER = "GradientBar";
+        private const string LINE_SHADER = "GradientBarLine";
+        
+        // 线条渲染资源
+        private bool _lineResourcesCreated = false;
+
         #endregion
 
         #region 公共属性
         /// <summary>
+        /// 梯度条配置
+        /// </summary>
+        public GradientBarConfiguration Configuration { get; private set; } = new GradientBarConfiguration();
+
+        // 为了保持向后兼容性，提供属性访问器
+        /// <summary>
         /// 是否显示梯度条
         /// </summary>
-        public bool IsVisible { get; set; } = true;
+        public bool IsVisible 
+        { 
+            get => Configuration.IsVisible; 
+            set => Configuration.IsVisible = value; 
+        }
+
+        /// <summary>
+        /// 更新配置
+        /// </summary>
+        /// <param name="newConfiguration">新配置</param>
+        public void UpdateConfiguration(GradientBarConfiguration newConfiguration)
+        {
+            if (newConfiguration?.IsValid() == true)
+            {
+                Configuration = newConfiguration.Clone();
+            }
+        }
+
+        /// <summary>
+        /// 获取当前配置的副本
+        /// </summary>
+        /// <returns>配置副本</returns>
+        public GradientBarConfiguration GetConfiguration()
+        {
+            return Configuration.Clone();
+        }
 
         /// <summary>
         /// 梯度条位置（左侧或右侧）
         /// </summary>
-        private GradientBarPosition _position = GradientBarPosition.Right;
-        
-        public GradientBarPosition Position
-        {
-            get => _position;
-            set
-            {
-                if (_position != value)
-                {
-                    _position = value;
-                }
-            }
+        public GradientBarPosition Position 
+        { 
+            get => Configuration.Position; 
+            set => Configuration.Position = value; 
         }
 
         /// <summary>
         /// 梯度条宽度（NDC坐标系）
         /// </summary>
-        public float Width { get; set; } = 0.02f;
+        public float Width 
+        { 
+            get => Configuration.Width; 
+            set => Configuration.Width = value; 
+        }
 
         /// <summary>
         /// 梯度条高度（相对于窗口高度的比例）
         /// </summary>
-        public float Height { get; set; } = 0.7f;
+        public float Height 
+        { 
+            get => Configuration.Height; 
+            set => Configuration.Height = value; 
+        }
 
         /// <summary>
         /// 梯度条距离边缘的偏移（相对于窗口宽度的比例）
         /// </summary>
-        public float EdgeOffset { get; set; } = 0.015f;
+        public float EdgeOffset 
+        { 
+            get => Configuration.EdgeOffset; 
+            set => Configuration.EdgeOffset = value; 
+        }
 
         /// <summary>
         /// 当前颜色梯度类型
         /// </summary>
-        public ColorGradientType GradientType { get; set; } = ColorGradientType.Classic;
+        public ColorGradientType GradientType 
+        { 
+            get => Configuration.GradientType; 
+            set => Configuration.GradientType = value; 
+        }
 
         /// <summary>
         /// 最小值
         /// </summary>
-        public float MinValue { get; set; } = -1.0f;
+        public float MinValue 
+        { 
+            get => Configuration.MinValue; 
+            set => Configuration.MinValue = value; 
+        }
 
         /// <summary>
         /// 最大值
         /// </summary>
-        public float MaxValue { get; set; } = 1.0f;
+        public float MaxValue 
+        { 
+            get => Configuration.MaxValue; 
+            set => Configuration.MaxValue = value; 
+        }
 
         /// <summary>
         /// 是否使用归一化刻度（-1~1）；false 则显示实际 Min~Max
         /// </summary>
-        public bool UseNormalizedScale { get; set; } = true;
+        public bool UseNormalizedScale 
+        { 
+            get => Configuration.UseNormalizedScale; 
+            set => Configuration.UseNormalizedScale = value; 
+        }
 
         /// <summary>
         /// 是否显示刻度
         /// </summary>
-        public bool ShowTicks { get; set; } = true;
+        public bool ShowTicks 
+        { 
+            get => Configuration.ShowTicks; 
+            set => Configuration.ShowTicks = value; 
+        }
 
         /// <summary>
         /// 刻度数量（包含两端），建议为奇数，如5或7
         /// </summary>
-        public int TickCount { get; set; } = 5;
+        public int TickCount 
+        { 
+            get => Configuration.TickCount; 
+            set => Configuration.TickCount = value; 
+        }
         #endregion
 
         #region 初始化和清理
@@ -123,177 +173,99 @@ namespace Avalonia3DControl.UI
         /// </summary>
         public void Initialize()
         {
-            if (_isInitialized) { Log("Initialize() skipped: already initialized"); return; }
+            if (_isInitialized) return;
 
             try
             {
                 // 检查OpenGL上下文是否可用
                 try
                 {
-                    Log("Querying GL Version...");
                     var version = GL.GetString(StringName.Version);
-                    Log($"GL Version='{version}'");
                     if (string.IsNullOrEmpty(version))
                     {
-                        Log("GL Version empty, abort initialization");
                         _isInitialized = false;
                         return;
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    Log($"Exception when querying GL Version: {ex.Message}");
                     _isInitialized = false;
                     return;
                 }
                 
-                Log("Creating gradient shaders...");
-                CreateShader();
-                Log("Creating geometry buffers...");
-                CreateGeometry();
+                // 初始化着色器管理器和几何渲染器
+                _shaderManager = new ShaderManager();
+                _geometryRenderer = new GeometryRenderer();
+                
+                CreateShaders();
+                _geometryRenderer.Initialize();
                 if (!_lineResourcesCreated)
                 {
-                    Log("Creating line resources for ticks...");
                     CreateLineResources();
                 }
                 _isInitialized = true;
-                Log("Initialize() success");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Log($"Initialize() failed: {ex.Message}");
                 _isInitialized = false;
             }
         }
 
         private void CreateLineResources()
         {
-            // 从文件加载线条着色器
-            string vertexSource = ShaderLoader.LoadGradientBarLineVertexShader();
-            string fragmentSource = ShaderLoader.LoadGradientBarLineFragmentShader();
-
-            int vs = CompileShader(ShaderType.VertexShader, vertexSource);
-            int fs = CompileShader(ShaderType.FragmentShader, fragmentSource);
-            _lineShaderProgram = GL.CreateProgram();
-            GL.AttachShader(_lineShaderProgram, vs);
-            GL.AttachShader(_lineShaderProgram, fs);
-            GL.LinkProgram(_lineShaderProgram);
-            GL.GetProgram(_lineShaderProgram, GetProgramParameterName.LinkStatus, out int success);
-            if (success == 0)
+            // 创建线条着色器（如果还未创建）
+            if (_shaderManager != null && !_shaderManager.HasShaderProgram(LINE_SHADER))
             {
-                string infoLog = GL.GetProgramInfoLog(_lineShaderProgram);
-                throw new Exception($"刻度线着色器链接失败: {infoLog}");
+                string lineVertexSource = ShaderLoader.LoadGradientBarLineVertexShader();
+                string lineFragmentSource = ShaderLoader.LoadGradientBarLineFragmentShader();
+                
+                _shaderManager.CreateShaderProgram(LINE_SHADER, lineVertexSource, lineFragmentSource);
             }
-            GL.DeleteShader(vs);
-            GL.DeleteShader(fs);
-
-            // 创建线条VAO/VBO
-            _lineVao = GL.GenVertexArray();
-            _lineVbo = GL.GenBuffer();
-            GL.BindVertexArray(_lineVao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _lineVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, 1024 * sizeof(float), IntPtr.Zero, BufferUsageHint.DynamicDraw); // 预分配
-            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
-            GL.BindVertexArray(0);
 
             _lineResourcesCreated = true;
         }
         #endregion
 
         #region 着色器与几何体
-        private void CreateShader()
+        private void CreateShaders()
         {
-            // 从文件加载着色器
-            string vertexSource = ShaderLoader.LoadGradientBarVertexShader();
-            string fragmentSource = ShaderLoader.LoadGradientBarFragmentShader();
-
-            // 编译着色器
-            int vertexShader = CompileShader(ShaderType.VertexShader, vertexSource);
-            int fragmentShader = CompileShader(ShaderType.FragmentShader, fragmentSource);
-
-            _shaderProgram = GL.CreateProgram();
-            GL.AttachShader(_shaderProgram, vertexShader);
-            GL.AttachShader(_shaderProgram, fragmentShader);
-
-            // 显式绑定attribute位置，确保aPosition=0，aTexCoord=1，避免位置与纹理坐标错乱
-            GL.BindAttribLocation(_shaderProgram, 0, "aPosition");
-            GL.BindAttribLocation(_shaderProgram, 1, "aTexCoord");
-
-            GL.LinkProgram(_shaderProgram);
-
-            // 检查链接状态
-            GL.GetProgram(_shaderProgram, GetProgramParameterName.LinkStatus, out int success);
-            if (success == 0)
+            // 创建梯度条着色器
+            string gradientVertexSource = ShaderLoader.LoadGradientBarVertexShader();
+            string gradientFragmentSource = ShaderLoader.LoadGradientBarFragmentShader();
+            
+            var gradientBindings = new Dictionary<int, string>
             {
-                string infoLog = GL.GetProgramInfoLog(_shaderProgram);
-                throw new Exception($"梯度条着色器链接失败: {infoLog}");
-            }
-
-            // 清理着色器对象
-            GL.DeleteShader(vertexShader);
-            GL.DeleteShader(fragmentShader);
+                { 0, "aPosition" },
+                { 1, "aTexCoord" }
+            };
+            
+            _shaderManager?.CreateShaderProgram(GRADIENT_SHADER, gradientVertexSource, 
+                gradientFragmentSource, gradientBindings);
         }
 
-        private int CompileShader(ShaderType type, string source)
+        /// <summary>
+        /// 设置梯度着色器的uniform变量
+        /// </summary>
+        /// <param name="shaderProgram">着色器程序ID</param>
+        private void SetGradientUniforms(int shaderProgram)
         {
-            int shader = GL.CreateShader(type);
-            GL.ShaderSource(shader, source);
-            GL.CompileShader(shader);
-            GL.GetShader(shader, ShaderParameter.CompileStatus, out int success);
-            if (success == 0)
-            {
-                string infoLog = GL.GetShaderInfoLog(shader);
-                throw new Exception($"着色器编译失败: {infoLog}");
-            }
-            return shader;
+            int gradientTypeLocation = GL.GetUniformLocation(shaderProgram, "gradientType");
+            int isSymmetricLocation = GL.GetUniformLocation(shaderProgram, "isSymmetric");
+            int minValueLocation = GL.GetUniformLocation(shaderProgram, "minValue");
+            int maxValueLocation = GL.GetUniformLocation(shaderProgram, "maxValue");
+
+            GL.Uniform1(gradientTypeLocation, (int)GradientType.BaseType);
+            GL.Uniform1(isSymmetricLocation, GradientType.IsSymmetric ? 1 : 0);
+            GL.Uniform1(minValueLocation, MinValue);
+            GL.Uniform1(maxValueLocation, MaxValue);
         }
+
+
 
         /// <summary>
         /// 创建几何体
         /// </summary>
-        private void CreateGeometry()
-        {
-            // 创建VAO
-            _vao = GL.GenVertexArray();
-            GL.BindVertexArray(_vao);
 
-            // 顶点数据（位置 + 纹理坐标）
-            float[] vertices = {
-                // 位置        纹理坐标
-                -1.0f,  1.0f, 0.0f,  0.0f, 1.0f, // 左上
-                -1.0f, -1.0f, 0.0f,  0.0f, 0.0f, // 左下
-                 1.0f, -1.0f, 0.0f,  1.0f, 0.0f, // 右下
-                 1.0f,  1.0f, 0.0f,  1.0f, 1.0f  // 右上
-            };
-
-            // 索引数据
-            uint[] indices = {
-                0, 1, 2,
-                2, 3, 0
-            };
-
-            // 创建VBO
-            _vbo = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
-
-            // 创建EBO
-            _ebo = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, _ebo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Length * sizeof(uint), indices, BufferUsageHint.StaticDraw);
-
-            // 设置顶点属性
-            // 位置属性
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
-
-            // 纹理坐标属性
-            GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
-            GL.EnableVertexAttribArray(1);
-
-            GL.BindVertexArray(0);
-        }
         #endregion
 
         #region 渲染方法
@@ -307,62 +279,34 @@ namespace Avalonia3DControl.UI
         {
             if (!_isInitialized)
             {
-                Log("Not initialized. Try lazy Initialize() in Render...");
-                try { Initialize(); } catch (Exception ex) { Log($"Lazy Initialize() threw: {ex.Message}"); return; }
-                if (!_isInitialized) { Log("Lazy Initialize() did not mark initialized. Skip render."); return; }
-                Log("Lazy Initialize() succeeded. Continue render.");
+                try { Initialize(); } catch (Exception) { return; }
+                if (!_isInitialized) return;
             }
             
-            if (!IsVisible)
+            if (!IsVisible || _geometryRenderer == null)
             {
-                Log("IsVisible == false. Skip render.");
                 return;
             }
             
-            // 记录并临时覆盖视口，保证梯度条按全屏视口渲染
-            int[] prevViewport = new int[4];
-            GL.GetInteger(GetPName.Viewport, prevViewport);
-            bool viewportOverridden = prevViewport[0] != 0 || prevViewport[1] != 0 || prevViewport[2] != viewportWidth || prevViewport[3] != viewportHeight;
-            if (viewportOverridden)
-            {
-                Log($"Override viewport {prevViewport[0]},{prevViewport[1]},{prevViewport[2]},{prevViewport[3]} -> 0,0,{viewportWidth},{viewportHeight}");
-                GL.Viewport(0, 0, viewportWidth, viewportHeight);
-            }
+            using var renderState = new RenderState();
+            renderState.SaveState();
+            renderState.Setup2DRenderState();
 
             try
             {
-                // 保存当前OpenGL状态
-                GL.GetInteger(GetPName.CurrentProgram, out int currentProgram);
-                GL.GetInteger(GetPName.VertexArrayBinding, out int currentVAO);
-                bool depthTestEnabled = GL.IsEnabled(EnableCap.DepthTest);
-                bool blendEnabled = GL.IsEnabled(EnableCap.Blend);
-                Log($"State before: program={currentProgram}, vao={currentVAO}, depthTest={depthTestEnabled}, blend={blendEnabled}");
+                // 记录并临时覆盖视口，保证梯度条按全屏视口渲染
+                bool viewportOverridden = renderState.SetViewport(0, 0, viewportWidth, viewportHeight);
 
-                // 设置渲染状态 - 确保梯度条在最前面
-                GL.Disable(EnableCap.DepthTest);
-                GL.Enable(EnableCap.Blend);
-                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-                // GL.Clear(ClearBufferMask.DepthBufferBit);
-
-                // 使用梯度条着色器
-                GL.UseProgram(_shaderProgram);
-
-                // 设置uniform变量
-                int gradientTypeLocation = GL.GetUniformLocation(_shaderProgram, "gradientType");
-                int isSymmetricLocation = GL.GetUniformLocation(_shaderProgram, "isSymmetric");
-                int minValueLocation = GL.GetUniformLocation(_shaderProgram, "minValue");
-                int maxValueLocation = GL.GetUniformLocation(_shaderProgram, "maxValue");
-
-                GL.Uniform1(gradientTypeLocation, (int)GradientType.BaseType);
-                GL.Uniform1(isSymmetricLocation, GradientType.IsSymmetric ? 1 : 0);
-                GL.Uniform1(minValueLocation, MinValue);
-                GL.Uniform1(maxValueLocation, MaxValue);
+                // 使用梯度条着色器并设置uniform变量
+                int gradientProgram = _shaderManager?.GetShaderProgram(GRADIENT_SHADER) ?? 0;
+                GL.UseProgram(gradientProgram);
+                SetGradientUniforms(gradientProgram);
                 
                 // 计算位置（每帧计算，便于刻度布局）
-                float scale = (float)dpiScale;
-                float barWidth = Width * scale;
-                float barHeight = Height * scale; 
-                float offsetX = EdgeOffset * scale;
+                // Width、Height、EdgeOffset都是NDC坐标系的值，不需要DPI缩放
+                float barWidth = Width;
+                float barHeight = Height; 
+                float offsetX = EdgeOffset;
 
                 float left, right;
                 if (Position == GradientBarPosition.Left)
@@ -377,34 +321,13 @@ namespace Avalonia3DControl.UI
                 }
                 // 垂直方向改为居中显示
                 float centerY = 0.0f;
-                float halfHeight = barHeight * 0.7f;
+                float halfHeight = barHeight * 0.5f;
                 float top = centerY + halfHeight;
                 float bottom = centerY - halfHeight;
 
-                Log($"Computed rect: L={left:F3}, R={right:F3}, T={top:F3}, B={bottom:F3}, scale={scale:F2}, pos={Position}");
-
-                // 更新梯度条矩形的顶点数据
-                float[] vertices = new float[
-                    5 * 4
-                ]
-                {
-                    left,  top,    0.0f,  0.0f, 1.0f,
-                    left,  bottom, 0.0f,  0.0f, 0.0f,
-                    right, bottom, 0.0f,  1.0f, 0.0f,
-                    right, top,    0.0f,  1.0f, 1.0f
-                };
-                uint[] indices = new uint[] { 0, 1, 2, 2, 3, 0 };
-
-                // 绑定并更新缓冲区数据
-                GL.BindVertexArray(_vao);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.DynamicDraw);
-                GL.BindBuffer(BufferTarget.ElementArrayBuffer, _ebo);
-                GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Length * sizeof(uint), indices, BufferUsageHint.DynamicDraw);
-
-                // 绘制梯度条矩形
-                GL.DrawElements(PrimitiveType.Triangles, indices.Length, DrawElementsType.UnsignedInt, 0);
-                Log("Gradient quad drawn");
+                // 创建并渲染四边形
+                var vertices = GeometryRenderer.CreateQuadVertices(left, right, top, bottom);
+                _geometryRenderer.RenderQuad(vertices);
 
                 // 记录位置用于刻度线/文字
                 _lastLeft = left;
@@ -415,37 +338,24 @@ namespace Avalonia3DControl.UI
                 // 绘制刻度线/标签
                 if (ShowTicks)
                 {
-                    Log($"Render ticks: _lineResourcesCreated={_lineResourcesCreated}, TickCount={TickCount}");
                     RenderTicksAndLabels();
                 }
 
-                // 恢复OpenGL状态
-                if (depthTestEnabled) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
-                if (!blendEnabled) GL.Disable(EnableCap.Blend);
-                GL.UseProgram(currentProgram);
-                GL.BindVertexArray(currentVAO);
-                
-                var err = GL.GetError();
-                if (err != ErrorCode.NoError) Log($"GL.GetError -> {err}");
-            }
-            catch (Exception ex)
-            {
-                Log($"Render() exception: {ex.Message}");
-            }
-            finally
-            {
                 // 恢复视口
                 if (viewportOverridden)
                 {
-                    GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
-                    Log("Viewport restored");
+                    renderState.RestoreViewport();
                 }
+            }
+            catch (Exception)
+            {
+                // 静默处理异常
             }
         }
 
         private void RenderTicksAndLabels()
         {
-            if (!_lineResourcesCreated) { Log("RenderTicksAndLabels skipped: _lineResourcesCreated=false"); return; }
+            if (!_lineResourcesCreated) return;
 
             // 计算刻度参数
             float barWidth = _lastRight - _lastLeft;
@@ -501,26 +411,18 @@ namespace Avalonia3DControl.UI
                 float textBaselineY = y - textHeight * 0.5f; // 垂直居中
 
                 // 将字符线段添加到lineVerts
-                AddTextLineSegments(lineVerts, label, textStartX, textBaselineY, textWidth, textHeight);
+                CharacterRenderer.AddTextLineSegments(lineVerts, label, textStartX, textBaselineY, textWidth, textHeight);
             }
 
             // 提交并绘制
             if (lineVerts.Count > 0)
             {
-                GL.UseProgram(_lineShaderProgram);
-                int colorLoc = GL.GetUniformLocation(_lineShaderProgram, "uColor");
+                int lineProgram = _shaderManager?.GetShaderProgram(LINE_SHADER) ?? 0;
+                GL.UseProgram(lineProgram);
+                int colorLoc = GL.GetUniformLocation(lineProgram, "uColor");
                 GL.Uniform3(colorLoc, new Vector3(1f,1f,1f));
 
-                GL.BindVertexArray(_lineVao);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, _lineVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, lineVerts.Count * sizeof(float), lineVerts.ToArray(), BufferUsageHint.DynamicDraw);
-                GL.DrawArrays(PrimitiveType.Lines, 0, lineVerts.Count / 2);
-                GL.BindVertexArray(0);
-                Log($"Ticks+labels drawn: vertices={lineVerts.Count}");
-            }
-            else
-            {
-                Log("No tick vertices generated");
+                _geometryRenderer?.RenderLines(lineVerts.ToArray(), lineVerts.Count / 2);
             }
         }
 
@@ -544,67 +446,7 @@ namespace Avalonia3DControl.UI
             }
         }
 
-        // 线段文字渲染与字符片段方法保持不变
-        private void AddTextLineSegments(List<float> verts, string text, float startX, float startY, float charW, float charH)
-        {
-            float x = startX;
-            foreach (char c in text)
-            {
-                AddCharSegments(verts, c, x, startY, charW, charH);
-                x += charW * 0.75f; // 字间距
-            }
-        }
-
-        private void AddCharSegments(List<float> verts, char c, float x, float y, float w, float h)
-        {
-            // 段坐标（相对0..1）
-            // 7段: a(上), b(右上), c(右下), d(下), e(左下), f(左上), g(中)
-            var seg = new Dictionary<char, bool>();
-            void AddSeg(char name)
-            {
-                switch (name)
-                {
-                    case 'a': AddLine(verts, x + w*0.1f, y + h*0.95f, x + w*0.9f, y + h*0.95f); break;
-                    case 'b': AddLine(verts, x + w*0.9f, y + h*0.95f, x + w*0.9f, y + h*0.5f); break;
-                    case 'c': AddLine(verts, x + w*0.9f, y + h*0.5f, x + w*0.9f, y + h*0.05f); break;
-                    case 'd': AddLine(verts, x + w*0.1f, y + h*0.05f, x + w*0.9f, y + h*0.05f); break;
-                    case 'e': AddLine(verts, x + w*0.1f, y + h*0.5f, x + w*0.1f, y + h*0.05f); break;
-                    case 'f': AddLine(verts, x + w*0.1f, y + h*0.95f, x + w*0.1f, y + h*0.5f); break;
-                    case 'g': AddLine(verts, x + w*0.15f, y + h*0.5f, x + w*0.85f, y + h*0.5f); break;
-                }
-            }
-
-            void AddLine(List<float> v, float x1, float y1, float x2, float y2)
-            {
-                v.Add(x1); v.Add(y1);
-                v.Add(x2); v.Add(y2);
-            }
-
-            switch (c)
-            {
-                case '0': AddSeg('a'); AddSeg('b'); AddSeg('c'); AddSeg('d'); AddSeg('e'); AddSeg('f'); break;
-                case '1': AddSeg('b'); AddSeg('c'); break;
-                case '2': AddSeg('a'); AddSeg('b'); AddSeg('g'); AddSeg('e'); AddSeg('d'); break;
-                case '3': AddSeg('a'); AddSeg('b'); AddSeg('g'); AddSeg('c'); AddSeg('d'); break;
-                case '4': AddSeg('f'); AddSeg('g'); AddSeg('b'); AddSeg('c'); break;
-                case '5': AddSeg('a'); AddSeg('f'); AddSeg('g'); AddSeg('c'); AddSeg('d'); break;
-                case '6': AddSeg('a'); AddSeg('f'); AddSeg('g'); AddSeg('e'); AddSeg('c'); AddSeg('d'); break;
-                case '7': AddSeg('a'); AddSeg('b'); AddSeg('c'); break;
-                case '8': AddSeg('a'); AddSeg('b'); AddSeg('c'); AddSeg('d'); AddSeg('e'); AddSeg('f'); AddSeg('g'); break;
-                case '9': AddSeg('a'); AddSeg('b'); AddSeg('c'); AddSeg('d'); AddSeg('f'); AddSeg('g'); break;
-                case '-': AddSeg('g'); break;
-                case '.':
-                {
-                    // 右下角一个小点（用短线代替）
-                    float cx = x + w*0.85f, cy = y + h*0.02f;
-                    AddLine(verts, cx - w*0.03f, cy - h*0.02f, cx + w*0.03f, cy + h*0.02f);
-                    break;
-                }
-                case ' ':
-                default:
-                    break;
-            }
-        }
+        // 字符渲染现在由CharacterRenderer类处理
         #endregion
 
         private static float Lerp(float a, float b, float t) => a + (b - a) * t;
@@ -622,16 +464,12 @@ namespace Avalonia3DControl.UI
             {
                 if (_isInitialized)
                 {
-                    GL.DeleteVertexArray(_vao);
-                    GL.DeleteBuffer(_vbo);
-                    GL.DeleteBuffer(_ebo);
-                    GL.DeleteProgram(_shaderProgram);
-                    if (_lineResourcesCreated)
-                    {
-                        GL.DeleteVertexArray(_lineVao);
-                        GL.DeleteBuffer(_lineVbo);
-                        GL.DeleteProgram(_lineShaderProgram);
-                    }
+                    // 清理着色器管理器
+                    _shaderManager?.Dispose();
+                    _shaderManager = null;
+                    // 清理几何渲染器
+                    _geometryRenderer?.Dispose();
+                    _geometryRenderer = null;
                 }
                 _disposed = true;
             }
