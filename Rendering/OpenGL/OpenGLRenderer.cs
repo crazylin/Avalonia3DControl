@@ -9,6 +9,7 @@ using Avalonia3DControl.Core.Cameras;
 using Avalonia3DControl.Core.Animation;
 using Avalonia3DControl.Materials;
 using Avalonia3DControl.UI;
+using Avalonia3DControl.Rendering;
 
 namespace Avalonia3DControl.Rendering.OpenGL
 {
@@ -1018,95 +1019,18 @@ namespace Avalonia3DControl.Rendering.OpenGL
 
         private void CreateVertexShader()
         {
-            string vertexSource = @"
-#version 100
-precision highp float;
-attribute vec3 aPosition;
-attribute vec3 aColor;
-
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-uniform bool uPointMode;
-uniform float uPointSize;
-
-varying vec3 vertexColor;
-
-void main()
-{
-    gl_Position = projection * view * model * vec4(aPosition, 1.0);
-    if (uPointMode) { gl_PointSize = uPointSize; }
-    vertexColor = aColor;
-}
-";
-
-            string fragmentSource = @"
-#version 100
-precision highp float;
-varying vec3 vertexColor;
-
-uniform float materialAlpha;
-
-void main()
-{
-    gl_FragColor = vec4(vertexColor, materialAlpha);
-}
-";
+            // 从文件加载着色器
+            string vertexSource = ShaderLoader.LoadRendererVertexShader();
+            string fragmentSource = ShaderLoader.LoadRendererFragmentShader();
 
             _shaderPrograms[ShadingMode.Vertex] = CompileShaderProgram(vertexSource, fragmentSource);
         }
 
         private void CreateTextureShader()
         {
-            string vertexSource = @"
-#version 100
-precision highp float;
-attribute vec3 aPosition;
-attribute vec3 aColor;
-
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-uniform bool uPointMode;
-uniform float uPointSize;
-
-varying vec3 Color;
-varying vec2 TexCoord;
-
-void main()
-{
-    Color = aColor;
-    TexCoord = (aPosition.xy + 1.0) * 0.5;
-    gl_Position = projection * view * model * vec4(aPosition, 1.0);
-    if (uPointMode) { gl_PointSize = uPointSize; }
-}";
-
-            string fragmentSource = @"
-#version 100
-precision highp float;
-varying vec3 Color;
-varying vec2 TexCoord;
-
-uniform bool hasTexture;
-uniform sampler2D texture0;
-uniform float materialAlpha;
-
-void main()
-{
-    vec3 textureColor;
-    
-    if (hasTexture) {
-        textureColor = texture2D(texture0, TexCoord).rgb;
-    } else {
-        float scale = 8.0;
-        vec2 scaledCoord = TexCoord * scale;
-        vec2 grid = floor(scaledCoord);
-        float checker = mod(grid.x + grid.y, 2.0);
-        textureColor = mix(vec3(0.8, 0.8, 0.8), vec3(0.2, 0.2, 0.2), checker);
-    }
-    
-    gl_FragColor = vec4(textureColor * Color, materialAlpha);
-}";
+            // 从文件加载着色器
+            string vertexSource = ShaderLoader.LoadTextureVertexShader();
+            string fragmentSource = ShaderLoader.LoadTextureFragmentShader();
 
             _shaderPrograms[ShadingMode.Texture] = CompileShaderProgram(vertexSource, fragmentSource);
         }
@@ -1116,64 +1040,13 @@ void main()
             try
             {
     
-                string vertexSource = "#version 100\n" +
-                    "precision highp float;\n" +
-                    "attribute vec3 aPosition;\n" +
-                    "attribute vec3 aColor;\n" +
-                    "uniform mat4 model;\n" +
-                    "uniform mat4 view;\n" +
-                    "uniform mat4 projection;\n" +
-                    "uniform bool uPointMode;\n" +
-                    "uniform float uPointSize;\n" +
-                    "varying vec3 vertexColor;\n" +
-                    "varying vec3 worldPos;\n" +
-                    "varying vec3 normal;\n" +
-                    "void main() {\n" +
-                    "    vec4 worldPosition = model * vec4(aPosition, 1.0);\n" +
-                    "    worldPos = worldPosition.xyz;\n" +
-                    "    normal = normalize(mat3(model) * vec3(0.0, 0.0, 1.0));\n" +
-                    "    gl_Position = projection * view * worldPosition;\n" +
-                    "    if (uPointMode) { gl_PointSize = uPointSize; }\n" +
-                    "    vertexColor = aColor;\n" +
-                    "}\n";
+                // 从文件加载材质顶点着色器
+            string vertexSource = ShaderLoader.LoadMaterialVertexShader();
 
 
 
-            string fragmentSource = "#version 100\n" +
-                "precision highp float;\n" +
-                "varying vec3 vertexColor;\n" +
-                "varying vec3 worldPos;\n" +
-                "varying vec3 normal;\n" +
-                "uniform vec3 materialAmbient;\n" +
-                "uniform vec3 materialDiffuse;\n" +
-                "uniform vec3 materialSpecular;\n" +
-                "uniform float materialShininess;\n" +
-                "uniform float materialAlpha;\n" +
-                "void main() {\n" +
-                "    vec3 norm = normalize(normal);\n" +
-                "    vec3 lightDir1 = normalize(vec3(1.0, 1.0, 1.0));\n" +
-                "    vec3 lightDir2 = normalize(vec3(-0.5, 0.5, -0.5));\n" +
-                "    vec3 lightColor = vec3(0.9, 0.9, 0.9);\n" +
-                "    vec3 ambientLight = vec3(0.7, 0.7, 0.7);\n" +
-                "    \n" +
-                "    vec3 ambient = ambientLight * materialAmbient;\n" +
-                "    \n" +
-                "    float diff1 = max(dot(norm, lightDir1), 0.0);\n" +
-                "    float diff2 = max(dot(norm, lightDir2), 0.0);\n" +
-                "    vec3 diffuse = (diff1 + diff2 * 0.5) * lightColor * materialDiffuse;\n" +
-                "    \n" +
-                "    \n" +
-                "    // Specular reflection calculation\n" +
-                "    vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));\n" +
-                "    vec3 reflectDir1 = reflect(-lightDir1, norm);\n" +
-                "    vec3 reflectDir2 = reflect(-lightDir2, norm);\n" +
-                "    float spec1 = pow(max(dot(viewDir, reflectDir1), 0.0), max(materialShininess, 1.0));\n" +
-                "    float spec2 = pow(max(dot(viewDir, reflectDir2), 0.0), max(materialShininess, 1.0));\n" +
-                "    vec3 specular = (spec1 + spec2 * 0.5) * lightColor * materialSpecular;\n" +
-                "    \n" +
-                "    vec3 result = ambient + diffuse + specular;\n" +
-                "    gl_FragColor = vec4(result, materialAlpha);\n" +
-                "}\n";
+            // 从文件加载材质片段着色器
+            string fragmentSource = ShaderLoader.LoadMaterialFragmentShader();
 
                 _shaderPrograms[ShadingMode.Material] = CompileShaderProgram(vertexSource, fragmentSource);
 

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Avalonia3DControl.Core.Animation;
 using System.IO;
+using Avalonia3DControl.Rendering;
 
 namespace Avalonia3DControl.UI
 {
@@ -167,22 +168,9 @@ namespace Avalonia3DControl.UI
 
         private void CreateLineResources()
         {
-            // 创建线条着色器
-            string vertexSource =
-                "#version 300 es\n" +
-                "layout(location = 0) in vec2 aPosition;\n" +
-                "void main() {\n" +
-                "    gl_Position = vec4(aPosition.xy, 0.0, 1.0);\n" +
-                "}\n";
-
-            string fragmentSource =
-                "#version 300 es\n" +
-                "precision mediump float;\n" +
-                "uniform vec3 uColor;\n" +
-                "out vec4 FragColor;\n" +
-                "void main() {\n" +
-                "    FragColor = vec4(uColor, 1.0);\n" +
-                "}\n";
+            // 从文件加载线条着色器
+            string vertexSource = ShaderLoader.LoadGradientBarLineVertexShader();
+            string fragmentSource = ShaderLoader.LoadGradientBarLineFragmentShader();
 
             int vs = CompileShader(ShaderType.VertexShader, vertexSource);
             int fs = CompileShader(ShaderType.FragmentShader, fragmentSource);
@@ -216,95 +204,9 @@ namespace Avalonia3DControl.UI
         #region 着色器与几何体
         private void CreateShader()
         {
-            // 顶点着色器
-            string vertexSource =
-                "#version 300 es\n" +
-                "layout(location = 0) in vec3 aPosition;\n" +
-                "layout(location = 1) in vec2 aTexCoord;\n" +
-                "out vec2 TexCoord;\n" +
-                "void main() {\n" +
-                "    gl_Position = vec4(aPosition, 1.0);\n" +
-                "    TexCoord = aTexCoord;\n" +
-                "}\n";
-
-            // 片段着色器
-            string fragmentSource =
-                "#version 300 es\n" +
-                "precision mediump float;\n" +
-                "in vec2 TexCoord;\n" +
-                "out vec4 FragColor;\n" +
-                "uniform int gradientType;\n" +
-                "uniform int isSymmetric;\n" +
-                "uniform float minValue;\n" +
-                "uniform float maxValue;\n" +
-                "vec3 getClassicColor(float t) {\n" +
-                "    if (t < 0.33) {\n" +
-                "        float ratio = t / 0.33;\n" +
-                "        return mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), ratio);\n" +
-                "    } else if (t < 0.66) {\n" +
-                "        float ratio = (t - 0.33) / 0.33;\n" +
-                "        return mix(vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), ratio);\n" +
-                "    } else {\n" +
-                "        float ratio = (t - 0.66) / 0.34;\n" +
-                "        return mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), ratio);\n" +
-                "    }\n" +
-                "}\n" +
-                "vec3 getThermalColor(float t) {\n" +
-                "    if (t < 0.33) {\n" +
-                "        return mix(vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), t * 3.0);\n" +
-                "    } else if (t < 0.67) {\n" +
-                "        return mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 0.0), (t - 0.33) * 3.0);\n" +
-                "    } else {\n" +
-                "        return mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), (t - 0.67) * 3.0);\n" +
-                "    }\n" +
-                "}\n" +
-                "vec3 getRainbowColor(float t) {\n" +
-                "    float h = t * 5.0;\n" +
-                "    float f = fract(h);\n" +
-                "    if (h < 1.0) return mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.5, 0.0), f);\n" +
-                "    else if (h < 2.0) return mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 1.0, 0.0), f);\n" +
-                "    else if (h < 3.0) return mix(vec3(1.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), f);\n" +
-                "    else if (h < 4.0) return mix(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0), f);\n" +
-                "    else return mix(vec3(0.0, 0.0, 1.0), vec3(0.5, 0.0, 1.0), f);\n" +
-                "}\n" +
-                "vec3 getMonochromeColor(float t) {\n" +
-                "    return mix(vec3(0.0, 0.0, 0.5), vec3(0.5, 0.5, 1.0), t);\n" +
-                "}\n" +
-                "vec3 getOceanColor(float t) {\n" +
-                "    if (t < 0.33) {\n" +
-                "        return mix(vec3(0.0, 0.0, 0.5), vec3(0.0, 0.5, 0.5), t * 3.0);\n" +
-                "    } else if (t < 0.67) {\n" +
-                "        return mix(vec3(0.0, 0.5, 0.5), vec3(0.0, 1.0, 0.0), (t - 0.33) * 3.0);\n" +
-                "    } else {\n" +
-                "        return mix(vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), (t - 0.67) * 3.0);\n" +
-                "    }\n" +
-                "}\n" +
-                "vec3 getFireColor(float t) {\n" +
-                "    if (t < 0.25) {\n" +
-                "        return mix(vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), t * 4.0);\n" +
-                "    } else if (t < 0.5) {\n" +
-                "        return mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.5, 0.0), (t - 0.25) * 4.0);\n" +
-                "    } else if (t < 0.75) {\n" +
-                "        return mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 1.0, 0.0), (t - 0.5) * 4.0);\n" +
-                "    } else {\n" +
-                "        return mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), (t - 0.75) * 4.0);\n" +
-                "    }\n" +
-                "}\n" +
-                "void main() {\n" +
-                "    float t = 1.0 - TexCoord.y;\n" +
-                "    if (isSymmetric == 1) {\n" +
-                "        t = abs(2.0 * t - 1.0);\n" +
-                "    }\n" +
-                "    vec3 color;\n" +
-                "    if (gradientType == 0) color = getClassicColor(t);\n" +
-                "    else if (gradientType == 1) color = getThermalColor(t);\n" +
-                "    else if (gradientType == 2) color = getRainbowColor(t);\n" +
-                "    else if (gradientType == 3) color = getMonochromeColor(t);\n" +
-                "    else if (gradientType == 4) color = getOceanColor(t);\n" +
-                "    else if (gradientType == 5) color = getFireColor(t);\n" +
-                "    else color = getClassicColor(t);\n" +
-                "    FragColor = vec4(color, 1.0);\n" +
-                "}\n";
+            // 从文件加载着色器
+            string vertexSource = ShaderLoader.LoadGradientBarVertexShader();
+            string fragmentSource = ShaderLoader.LoadGradientBarFragmentShader();
 
             // 编译着色器
             int vertexShader = CompileShader(ShaderType.VertexShader, vertexSource);
