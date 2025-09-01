@@ -1,0 +1,140 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Avalonia3DControl.ROI2D.ROIDemoWindow"
+        Title="2D ROI布点功能演示"
+        Width="1200" Height="800"
+        MinWidth="800" MinHeight="600">
+    
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        
+        <!-- 左侧控制面板 -->
+        <ScrollViewer Grid.Column="0" Background="#F5F5F5">
+            <StackPanel Margin="10">
+                
+                <!-- 绘制工具 -->
+                <Expander Header="绘制工具" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <Button Name="PointerToolButton" Content="指针" Margin="2" />
+                        <Button Name="PointToolButton" Content="点" Margin="2" />
+                        <Button Name="LineToolButton" Content="线" Margin="2" />
+                        <Button Name="RectangleToolButton" Content="矩形" Margin="2" />
+                        <Button Name="CircleToolButton" Content="圆形" Margin="2" />
+                        <Button Name="PolygonToolButton" Content="多边形" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
+                <!-- 智能布点 -->
+                <Expander Header="智能布点" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <TextBlock Text="网格间距:" />
+                        <NumericUpDown Name="GridSpacingInput" Value="10" Minimum="1" Maximum="100" Margin="2" />
+                        <Button Name="GenerateGridButton" Content="生成网格点" Margin="2" />
+                        
+                        <TextBlock Text="随机密度:" />
+                        <NumericUpDown Name="RandomDensityInput" Value="0.1" Minimum="0.01" Maximum="1" Increment="0.01" Margin="2" />
+                        <Button Name="GenerateRandomButton" Content="生成随机点" Margin="2" />
+                        
+                        <Button Name="GenerateCircularButton" Content="生成圆形网格" Margin="2" />
+                        <Button Name="GenerateHexagonalButton" Content="生成六边形网格" Margin="2" />
+                        <Button Name="GeneratePoissonButton" Content="生成泊松分布" Margin="2" />
+                        <Button Name="GenerateSpiralButton" Content="生成螺旋线" Margin="2" />
+                        
+                        <Button Name="ClearPointsButton" Content="清除所有点" Margin="2" Background="#FFE57373" />
+                    </StackPanel>
+                </Expander>
+                
+                <!-- 面片生成 -->
+                <Expander Header="面片生成" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <TextBlock Text="网格密度:" />
+                        <NumericUpDown Name="MeshDensityInput" Value="0.1" Minimum="0.01" Maximum="1" Increment="0.01" Margin="2" />
+                        
+                        <Button Name="GenerateTriangularMeshButton" Content="生成三角网格" Margin="2" />
+                        <Button Name="GenerateQuadMeshButton" Content="生成四边形网格" Margin="2" />
+                        <Button Name="GenerateDelaunayButton" Content="德劳内三角剖分" Margin="2" />
+                        <Button Name="GenerateAdaptiveButton" Content="自适应网格" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
+                <!-- 几何运算 -->
+                <Expander Header="几何运算" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <Button Name="UnionButton" Content="并集" Margin="2" />
+                        <Button Name="IntersectionButton" Content="交集" Margin="2" />
+                        <Button Name="DifferenceButton" Content="差集" Margin="2" />
+                        <Button Name="XorButton" Content="异或" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
+                <!-- 图层管理 -->
+                <Expander Header="图层管理" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <Button Name="AddLayerButton" Content="添加图层" Margin="2" />
+                        <Button Name="RemoveLayerButton" Content="删除图层" Margin="2" />
+                        <Button Name="ClearLayerButton" Content="清空图层" Margin="2" />
+                        <ListBox Name="LayerListBox" Height="100" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
+                <!-- 选择操作 -->
+                <Expander Header="选择操作" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <Button Name="SelectAllButton" Content="全选" Margin="2" />
+                        <Button Name="ClearSelectionButton" Content="清除选择" Margin="2" />
+                        <Button Name="DeleteSelectedButton" Content="删除选中" Margin="2" Background="#FFE57373" />
+                        <TextBlock Name="SelectionInfoText" Text="未选择" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
+                <!-- 视图控制 -->
+                <Expander Header="视图控制" IsExpanded="True">
+                    <StackPanel Margin="5">
+                        <Button Name="ZoomFitButton" Content="适应窗口" Margin="2" />
+                        <Button Name="ZoomInButton" Content="放大" Margin="2" />
+                        <Button Name="ZoomOutButton" Content="缩小" Margin="2" />
+                        <Button Name="ResetViewButton" Content="重置视图" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
+                <!-- 导入导出 -->
+                <Expander Header="导入导出" IsExpanded="False">
+                    <StackPanel Margin="5">
+                        <Button Name="SaveROIButton" Content="保存ROI" Margin="2" />
+                        <Button Name="LoadROIButton" Content="加载ROI" Margin="2" />
+                        <Button Name="ExportImageButton" Content="导出图像" Margin="2" />
+                    </StackPanel>
+                </Expander>
+                
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- 右侧3D视图区域 -->
+        <Border Grid.Column="1" Background="White" BorderBrush="Gray" BorderThickness="1">
+            <Grid>
+                <!-- 这里将放置3D控件 -->
+                <ContentControl Name="ViewportContainer" />
+                
+                <!-- 状态栏 -->
+                <Border VerticalAlignment="Bottom" Background="#F0F0F0" Height="25">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Name="StatusText" Text="就绪" VerticalAlignment="Center" Margin="5,0" />
+                        <TextBlock Name="CoordinateText" Grid.Column="1" Text="坐标: (0, 0)" VerticalAlignment="Center" Margin="5,0" />
+                        <TextBlock Name="ZoomText" Grid.Column="2" Text="缩放: 100%" VerticalAlignment="Center" Margin="5,0" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+        
+    </Grid>
+    
+</Window>

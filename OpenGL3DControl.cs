@@ -31,6 +31,7 @@ using Avalonia3DControl.Rendering.OpenGL;
 using Avalonia3DControl.Geometry.Factories;
 using Avalonia3DControl.UI;
 using Avalonia3DControl.Core.Animation;
+using Avalonia3DControl.ROI2D;
 
 namespace Avalonia3DControl
 {
@@ -56,6 +57,9 @@ namespace Avalonia3DControl
         private CameraController? _cameraController;
         private InputHandler? _inputHandler;
         
+        // ROI2D集成
+        private ROI2DIntegration? _roi2DIntegration;
+        
         // 渲染状态
         private ShadingMode _currentShadingMode = ShadingMode.Vertex;
         private RenderMode _currentRenderMode = RenderMode.Fill;
@@ -67,6 +71,11 @@ namespace Avalonia3DControl
         /// 3D场景管理器
         /// </summary>
         public Scene3D Scene { get; private set; } = new Scene3D();
+        
+        /// <summary>
+        /// ROI2D集成接口
+        /// </summary>
+        public ROI2DIntegration ROI2D => _roi2DIntegration ??= new ROI2DIntegration(this);
         #endregion
         
         #region 构造函数
@@ -117,6 +126,7 @@ namespace Avalonia3DControl
 
         protected override void OnOpenGlDeinit(GlInterface gl)
         {
+            _roi2DIntegration?.Dispose();
             _inputHandler?.Dispose();
             _renderer?.Dispose();
             base.OnOpenGlDeinit(gl);
@@ -161,6 +171,9 @@ namespace Avalonia3DControl
                 // 渲染场景（包含坐标轴）
                 var coordinateAxes = Scene.ShowCoordinateAxes ? Scene.CoordinateAxes.AxesModel : null;
                 _renderer?.RenderSceneWithAxes(Scene.Camera, Scene.Models, Scene.Lights, Scene.BackgroundColor, _currentShadingMode, _currentRenderMode, coordinateAxes, Scene.MiniAxes, renderScaling);
+                
+                // 渲染ROI2D覆盖层
+                _roi2DIntegration?.RenderROI2D();
             }
             catch (Exception ex)
             {
@@ -199,23 +212,47 @@ namespace Avalonia3DControl
         protected override void OnPointerPressed(PointerPressedEventArgs e)
         {
             base.OnPointerPressed(e);
-            var topLevel = TopLevel.GetTopLevel(this);
-            var renderScaling = topLevel?.RenderScaling ?? 1.0;
-            _inputHandler?.HandlePointerPressed(e, renderScaling);
+            
+            // 首先尝试ROI2D处理
+            bool handledByROI = _roi2DIntegration?.HandleMouseDown(e) ?? false;
+            
+            // 如果ROI2D没有处理，则交给3D控件处理
+            if (!handledByROI)
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                var renderScaling = topLevel?.RenderScaling ?? 1.0;
+                _inputHandler?.HandlePointerPressed(e, renderScaling);
+            }
         }
 
         protected override void OnPointerMoved(PointerEventArgs e)
         {
             base.OnPointerMoved(e);
-            var topLevel = TopLevel.GetTopLevel(this);
-            var renderScaling = topLevel?.RenderScaling ?? 1.0;
-            _inputHandler?.HandlePointerMoved(e, renderScaling);
+            
+            // 首先尝试ROI2D处理
+            bool handledByROI = _roi2DIntegration?.HandleMouseMove(e) ?? false;
+            
+            // 如果ROI2D没有处理，则交给3D控件处理
+            if (!handledByROI)
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                var renderScaling = topLevel?.RenderScaling ?? 1.0;
+                _inputHandler?.HandlePointerMoved(e, renderScaling);
+            }
         }
 
         protected override void OnPointerReleased(PointerReleasedEventArgs e)
         {
             base.OnPointerReleased(e);
-            _inputHandler?.HandlePointerReleased(e);
+            
+            // 首先尝试ROI2D处理
+            bool handledByROI = _roi2DIntegration?.HandleMouseUp(e) ?? false;
+            
+            // 如果ROI2D没有处理，则交给3D控件处理
+            if (!handledByROI)
+            {
+                _inputHandler?.HandlePointerReleased(e);
+            }
         }
 
         protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -224,6 +261,19 @@ namespace Avalonia3DControl
             _inputHandler?.HandlePointerWheelChanged(e);
         }
 
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            
+            // 首先尝试ROI2D处理
+            bool handledByROI = _roi2DIntegration?.HandleKeyDown(e) ?? false;
+            
+            // 如果ROI2D没有处理，可以添加其他键盘处理逻辑
+            if (!handledByROI)
+            {
+                // 3D控件的键盘处理逻辑
+            }
+        }
 
         #endregion
 
@@ -381,6 +431,47 @@ namespace Avalonia3DControl
         {
             _renderer?.SetGradientBarShowTicks(show);
             RequestNextFrameRendering();
+        }
+
+        /// <summary>
+        /// 启用ROI2D功能
+        /// </summary>
+        public void EnableROI2D()
+        {
+            ROI2D.IsEnabled = true;
+            RequestNextFrameRendering();
+        }
+
+        /// <summary>
+        /// 禁用ROI2D功能
+        /// </summary>
+        public void DisableROI2D()
+        {
+            ROI2D.IsEnabled = false;
+            RequestNextFrameRendering();
+        }
+
+        /// <summary>
+        /// 获取ROI2D是否启用
+        /// </summary>
+        public bool IsROI2DEnabled => ROI2D.IsEnabled;
+
+        /// <summary>
+        /// 切换到2D模式（正交投影 + 启用ROI2D）
+        /// </summary>
+        public void SwitchTo2DMode()
+        {
+            SwitchToOrthographic();
+            EnableROI2D();
+        }
+
+        /// <summary>
+        /// 切换到3D模式（透视投影 + 禁用ROI2D）
+        /// </summary>
+        public void SwitchTo3DMode()
+        {
+            SwitchToPerspective();
+            DisableROI2D();
         }
 
         #endregion

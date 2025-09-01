@@ -5,13 +5,16 @@
 ## 功能特性
 
 - **跨平台支持**: 基于Avalonia框架构建，支持Windows、macOS和Linux
-- **OpenGL渲染**: 使用OpenGL实现高性能3D渲染
+- **OpenGL渲染**: 高性能3D渲染，优化内存分配
 - **多种投影模式**: 支持透视投影和正交投影切换
-- **坐标轴显示**: 可视化坐标系统，独立着色器渲染
+- **独立坐标系统**: 
+  - **坐标轴**: 可配置的3D坐标轴，独立渲染
+  - **迷你坐标轴**: 角落迷你坐标轴，设计模式一致的方向参考
 - **多种着色模式**: 支持顶点着色和纹理着色
-- **交互式相机**: 鼠标控制相机旋转和缩放
-- **迷你坐标轴**: 角落迷你坐标轴用于方向参考
-- **现代化UI**: 简洁直观的用户界面
+- **交互式相机**: 鼠标控制相机旋转和缩放，操作流畅
+- **健壮错误处理**: 全面的错误管理和异常处理
+- **现代化UI**: 简洁直观的用户界面，支持动画效果
+- **模块化架构**: 遵循SOLID原则的良好代码结构
 
 ## 截图展示
 
@@ -75,30 +78,67 @@ dotnet run
 
 ### 核心组件
 
-- **OpenGL3DControl**: 主要的3D控件组件
-- **OpenGLRenderer**: OpenGL渲染引擎
-- **Scene3D**: 3D场景管理
-- **Camera**: 相机系统与投影控制
-- **Model3D**: 3D模型表示
-- **Material**: 材质和着色系统
+- **OpenGL3DControl**: 主要的3D控件组件，集成事件处理
+- **OpenGLRenderer**: 优化的OpenGL渲染引擎，支持空值安全操作
+- **Scene3D**: 增强的3D场景管理，支持独立坐标系统
+- **Camera**: 高级相机系统，流畅的投影控制
+- **Model3D**: 灵活的3D模型表示，支持材质系统
+- **Material**: 全面的材质和着色系统
+- **CoordinateAxes**: 独立的坐标轴组件，可配置显示
+- **MiniAxes**: 紧凑的方向参考，设计模式一致
+- **ErrorHandler**: 健壮的错误处理和异常管理系统
 
 ### 项目结构
 
 ```
 Avalonia3DControl/
 ├── Core/
-│   ├── Cameras/          # 相机系统
+│   ├── Animation/        # 动画系统和模态数据
+│   ├── Cameras/          # 相机系统与控制器
+│   ├── ErrorHandling/    # 全面的错误管理
+│   ├── Input/            # 输入处理系统
 │   ├── Lighting/         # 光照系统
 │   ├── Models/           # 3D模型类
-│   └── Scene3D.cs        # 场景管理
+│   ├── CoordinateAxes.cs # 独立坐标轴组件
+│   ├── MiniAxes.cs       # 迷你坐标轴方向参考
+│   └── Scene3D.cs        # 增强的场景管理
 ├── Geometry/
-│   └── Factories/        # 几何体生成
-├── Materials/            # 材质和着色
+│   └── Factories/        # 优化的几何体生成
+├── Materials/            # 材质和着色系统
 ├── Rendering/
-│   └── OpenGL/           # OpenGL渲染引擎
-├── UI/                   # 用户界面
-└── OpenGL3DControl.cs    # 主控件
+│   ├── OpenGL/           # 优化的OpenGL渲染引擎
+│   ├── GeometryRenderer.cs # 几何体渲染工具
+│   ├── RenderConfiguration.cs # 渲染设置
+│   ├── RenderState.cs    # 渲染状态管理
+│   ├── ShaderLoader.cs   # 着色器加载工具
+│   └── ShaderManager.cs  # 着色器程序管理
+├── UI/                   # 增强的用户界面
+│   ├── CharacterRenderer.cs # 文本渲染
+│   ├── GradientBar.cs    # 梯度可视化
+│   ├── ModalAnimationPanel.* # 动画控制面板
+│   └── UIManager.cs      # UI事件管理
+├── Shaders/              # GLSL着色器程序
+│   ├── GradientBar/      # 梯度渲染着色器
+│   └── Renderer/         # 模型渲染着色器
+└── OpenGL3DControl.cs    # 主要3D控件组件
 ```
+
+## 最近改进
+
+### 版本 2.0 增强功能
+
+- **独立坐标系统**: 将 `CoordinateAxes` 提取为独立组件，与 `MiniAxes` 保持一致的设计模式
+- **增强错误处理**: 实现全面的错误管理，整个代码库支持空值安全操作
+- **性能优化**: 
+  - 优化内存分配模式
+  - 改进渲染管道效率
+  - 增强着色器管理系统
+- **代码质量改进**:
+  - 在架构中应用SOLID原则
+  - 完善代码文档，添加全面的XML注释
+  - 消除所有编译器警告，实现更清洁的构建
+  - 增强模块化和可维护性
+- **UI增强**: 添加动画支持，改进用户交互反馈
 
 ## 技术细节
 
