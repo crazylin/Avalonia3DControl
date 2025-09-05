@@ -130,7 +130,13 @@ namespace Avalonia3DControl.Rendering.OpenGL
             var prevMode = _currentRenderMode;
             _currentRenderMode = RenderMode.Fill;
             
+            // 禁用深度测试，确保坐标轴始终可见
+            GL.Disable(EnableCap.DepthTest);
+            
             _modelRenderer.RenderModel(coordinateAxes, axesShaderProgram, RenderMode.Fill);
+            
+            // 恢复深度测试
+            GL.Enable(EnableCap.DepthTest);
             
             // 恢复渲染模式和着色器
             _currentRenderMode = prevMode;
@@ -228,8 +234,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// </summary>
         private void SetupMiniAxesMatrices(Camera camera, int shaderProgram)
         {
-            // 创建迷你坐标轴的投影矩阵
-            Matrix4 miniProjection = Matrix4.CreateOrthographic(3.5f, 3.5f, 0.1f, 10.0f);
+            // 创建迷你坐标轴的投影矩阵（扩大视场避免截取）
+            Matrix4 miniProjection = Matrix4.CreateOrthographic(5.0f, 5.0f, 0.1f, 10.0f);
             
             // 创建迷你坐标轴的视图矩阵（跟随主相机的旋转）
             Vector3 cameraDirection = Vector3.Normalize(camera.Target - camera.Position);
@@ -260,8 +266,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
             
             try
             {
-                // 创建迷你坐标轴的矩阵用于标签渲染
-                Matrix4 miniProjection = Matrix4.CreateOrthographic(3.5f, 3.5f, 0.1f, 10.0f);
+                // 创建迷你坐标轴的矩阵用于标签渲染（扩大视场避免截取）
+                Matrix4 miniProjection = Matrix4.CreateOrthographic(5.0f, 5.0f, 0.1f, 10.0f);
                 Vector3 cameraDirection = Vector3.Normalize(camera.Target - camera.Position);
                 Vector3 cameraUp = camera.Up;
                 Vector3 miniCameraPos = -cameraDirection * 3.0f;

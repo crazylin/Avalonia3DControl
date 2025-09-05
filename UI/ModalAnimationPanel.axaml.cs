@@ -38,6 +38,7 @@ namespace Avalonia3DControl.UI
         private TextBlock? _speedValueText;
         private TextBlock? _amplitudeValueText;
         private TextBlock? _statusText;
+
         
         public ModalAnimationPanel()
         {
@@ -68,6 +69,7 @@ namespace Avalonia3DControl.UI
             _speedValueText = this.FindControl<TextBlock>("SpeedValueText");
             _amplitudeValueText = this.FindControl<TextBlock>("AmplitudeValueText");
             _statusText = this.FindControl<TextBlock>("StatusText");
+
             
             // 设置初始选中项
             if (_modeComboBox != null)
@@ -115,6 +117,8 @@ namespace Avalonia3DControl.UI
             {
                 _amplitudeSlider.ValueChanged += OnAmplitudeChanged;
             }
+            
+            // 等高线层数滑块事件
             
             // 循环播放复选框事件
             if (_loopCheckBox != null)
@@ -263,9 +267,9 @@ namespace Avalonia3DControl.UI
                         
                         // 归一化振型幅值
                         modeShape *= 0.2; // 增加振幅使效果更明显
-                        
+
                         // 为不同位置的点添加不同的相位，实现动态颜色变化
-                        float phaseZ = (float)(2.0 * Math.PI * x); // 基于位置的相位变化
+                        float phaseZ = 0;//(float)(2.0 * Math.PI * x); // 基于位置的相位变化
                         
                         var point = new ModalPoint
                         {
@@ -392,6 +396,8 @@ namespace Avalonia3DControl.UI
                 }
             }
         }
+        
+
         
         private void OnAnimationStateChanged(AnimationState state)
         {

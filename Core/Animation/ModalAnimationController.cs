@@ -183,6 +183,8 @@ public class ModalAnimationController : IDisposable
             get => _colorGradientType;
             set => _colorGradientType = value;
         }
+        
+
         #endregion
         
         #region 事件
@@ -516,23 +518,42 @@ public class ModalAnimationController : IDisposable
                     // 根据振动位移更新颜色
                     float zDisplacement = displacement.Z;
                     
-                    // 统一归一化到[-1, 1]（以当前帧的最大绝对位移为基准），无论对称/非对称梯度
+                    // 使用观察到的位移范围进行归一化，而不是当前帧的最大绝对位移
+                    // 这样可以确保帧与帧之间的颜色渐变更加平滑
                     float normalizedSigned;
-                    if (currentMaxAbsDisplacement > 1e-6f)
+                    float observedMaxAbsDisplacement = Math.Max(Math.Abs(_maxObservedDisplacement), Math.Abs(_minObservedDisplacement));
+                    
+                    if (observedMaxAbsDisplacement > 1e-6f)
                     {
-                        normalizedSigned = Math.Max(-1.0f, Math.Min(1.0f, zDisplacement / currentMaxAbsDisplacement));
+                        normalizedSigned = Math.Max(-1.0f, Math.Min(1.0f, zDisplacement / observedMaxAbsDisplacement));
                     }
                     else
                     {
                         normalizedSigned = 0.0f;
                     }
                     
-                    // 颜色查找仍使用[0,1]，将[-1,1]映射到[0,1]
-                    float normalizedDisplacement = (normalizedSigned + 1.0f) * 0.5f;
-                    normalizedDisplacement = Math.Max(0.0f, Math.Min(1.0f, normalizedDisplacement));
+                    // 使用平滑过渡函数处理归一化值
+                    // 应用平滑函数，确保在-1到1之间有更好的颜色过渡
+                    float smoothedSigned = normalizedSigned * (1.5f - 0.5f * Math.Abs(normalizedSigned));
                     
-                    // 根据选择的颜色梯度类型计算颜色
-                    var color = CalculateGradientColor(normalizedDisplacement, _colorGradientType);
+                    // 根据颜色梯度类型选择不同的处理方式
+                    (float r, float g, float b) color;
+                    
+                    if (_colorGradientType.IsSymmetric)
+                    {
+                        // 对于对称梯度，使用连续的颜色映射
+                        // 将[-1,1]范围的值直接映射到[0,1]，确保平滑过渡
+                        float t = (smoothedSigned + 1.0f) * 0.5f;
+                        t = Math.Max(0.0f, Math.Min(1.0f, t));
+                        color = CalculateGradientColor(t, _colorGradientType);
+                    }
+                    else
+                    {
+                        // 非对称梯度，将[-1,1]映射到[0,1]
+                        float normalizedDisplacement = (smoothedSigned + 1.0f) * 0.5f;
+                        normalizedDisplacement = Math.Max(0.0f, Math.Min(1.0f, normalizedDisplacement));
+                        color = CalculateGradientColor(normalizedDisplacement, _colorGradientType);
+                    }
                     
                     vertices[vertexIndex + 3] = color.r;
                     vertices[vertexIndex + 4] = color.g;
@@ -596,67 +617,80 @@ public class ModalAnimationController : IDisposable
         }
         
         /// <summary>
-        /// 经典梯度：蓝色 -> 绿色 -> 黄色 -> 红色
+        /// 经典梯度：蓝色 -> 青色 -> 绿色 -> 黄色 -> 红色
+        /// 根据实际颜色数量自动计算每种颜色的占比，实现平滑过渡
         /// </summary>
         private (float r, float g, float b) CalculateClassicGradient(float t)
         {
-            if (t < 0.33f)
+            // 确保t在[0,1]范围内
+            t = Math.Max(0.0f, Math.Min(1.0f, t));
+            
+            // 定义主要颜色及其HSV色相值
+            var hsvColors = new List<(float h, float s, float v)>
             {
-                // 蓝色到绿色 (0-0.33)
-                float ratio = t / 0.33f;
-                return (0.0f, ratio, 1.0f - ratio);
-            }
-            else if (t < 0.66f)
-            {
-                // 绿色到黄色 (0.33-0.66)
-                float ratio = (t - 0.33f) / 0.33f;
-                return (ratio, 1.0f, 0.0f);
-            }
-            else
-            {
-                // 黄色到红色 (0.66-1.0)
-                float ratio = (t - 0.66f) / 0.34f;
-                return (1.0f, 1.0f - ratio, 0.0f);
-            }
+                (240.0f, 1.0f, 0.7f), // 深蓝色
+                (180.0f, 1.0f, 1.0f), // 青色
+                (120.0f, 1.0f, 1.0f), // 绿色
+                (60.0f, 1.0f, 1.0f),  // 黄色
+                (0.0f, 1.0f, 1.0f)    // 红色
+            };
+            
+            // 计算每个颜色段的大小
+            int colorCount = hsvColors.Count - 1; // 颜色段数量 = 颜色数量 - 1
+            float segmentSize = 1.0f / colorCount;
+            
+            // 确定当前t所在的颜色段
+            int segment = Math.Min((int)(t / segmentSize), colorCount - 1);
+            
+            // 计算在当前颜色段内的比例
+            float ratio = (t - segment * segmentSize) / segmentSize;
+            
+            // 在两个HSV颜色之间进行线性插值
+            var hsv1 = hsvColors[segment];
+            var hsv2 = hsvColors[segment + 1];
+            
+            // 对HSV值进行插值
+            float h = hsv1.h + (hsv2.h - hsv1.h) * ratio;
+            float s = hsv1.s + (hsv2.s - hsv1.s) * ratio;
+            float v = hsv1.v + (hsv2.v - hsv1.v) * ratio;
+            
+            // 将HSV转换为RGB
+            return HsvToRgb(h, s, v);
         }
-        
-        /// <summary>
-        /// 热力图梯度：黑色 -> 红色 -> 黄色 -> 白色
-        /// </summary>
-        private (float r, float g, float b) CalculateHeatmapGradient(float t)
+
+    /// <summary>
+    /// 热力图梯度：黑色 -> 红色 -> 黄色 -> 白色
+    /// </summary>
+    private (float r, float g, float b) CalculateHeatmapGradient(float t)
+    {
+        // 定义颜色列表
+        var colors = new List<(float r, float g, float b)>
+            {
+                (0.0f, 0.0f, 0.0f), // 黑色
+                (1.0f, 0.0f, 0.0f), // 红色
+                (1.0f, 1.0f, 0.0f), // 黄色
+                (1.0f, 1.0f, 1.0f)  // 白色
+            };
+
+        return CalculateGradientFromColors(t, colors);
+    }
+    /// <summary>
+    /// 彩虹梯度：红色 -> 橙色 -> 黄色 -> 绿色 -> 蓝色 -> 紫色
+    /// </summary>
+    private (float r, float g, float b) CalculateRainbowGradient(float t)
         {
-            if (t < 0.25f)
+            // 定义颜色列表（使用HSV色相值）
+            var hsvColors = new List<(float h, float s, float v)>
             {
-                // 黑色到红色
-                float ratio = t / 0.25f;
-                return (ratio, 0.0f, 0.0f);
-            }
-            else if (t < 0.5f)
-            {
-                // 红色到黄色
-                float ratio = (t - 0.25f) / 0.25f;
-                return (1.0f, ratio, 0.0f);
-            }
-            else if (t < 0.75f)
-            {
-                // 黄色到白色（增加蓝色分量）
-                float ratio = (t - 0.5f) / 0.25f;
-                return (1.0f, 1.0f, ratio);
-            }
-            else
-            {
-                // 保持白色
-                return (1.0f, 1.0f, 1.0f);
-            }
-        }
-        
-        /// <summary>
-        /// 彩虹梯度：红色 -> 橙色 -> 黄色 -> 绿色 -> 蓝色 -> 紫色
-        /// </summary>
-        private (float r, float g, float b) CalculateRainbowGradient(float t)
-        {
-            float hue = t * 300.0f; // 0-300度，避免回到红色
-            return HsvToRgb(hue, 1.0f, 1.0f);
+                (0.0f, 1.0f, 1.0f),   // 红色
+                (30.0f, 1.0f, 1.0f),  // 橙色
+                (60.0f, 1.0f, 1.0f),  // 黄色
+                (120.0f, 1.0f, 1.0f), // 绿色
+                (240.0f, 1.0f, 1.0f), // 蓝色
+                (300.0f, 1.0f, 1.0f)  // 紫色
+            };
+            
+            return CalculateGradientFromHsvColors(t, hsvColors);
         }
         
         /// <summary>
@@ -664,8 +698,14 @@ public class ModalAnimationController : IDisposable
         /// </summary>
         private (float r, float g, float b) CalculateMonochromeGradient(float t)
         {
-            float intensity = 0.2f + t * 0.8f; // 从20%到100%强度
-            return (0.0f, 0.4f * intensity, intensity);
+            // 定义颜色列表
+            var colors = new List<(float r, float g, float b)>
+            {
+                (0.0f, 0.08f, 0.2f), // 深蓝
+                (0.0f, 0.4f, 1.0f)   // 浅蓝
+            };
+            
+            return CalculateGradientFromColors(t, colors);
         }
         
         /// <summary>
@@ -673,61 +713,118 @@ public class ModalAnimationController : IDisposable
         /// </summary>
         private (float r, float g, float b) CalculateOceanGradient(float t)
         {
-            if (t < 0.33f)
+            // 定义颜色列表
+            var colors = new List<(float r, float g, float b)>
             {
-                // 深蓝到青色
-                float ratio = t / 0.33f;
-                return (0.0f, ratio * 0.5f, 0.5f + ratio * 0.5f);
-            }
-            else if (t < 0.66f)
-            {
-                // 青色到浅绿
-                float ratio = (t - 0.33f) / 0.33f;
-                return (0.0f, 0.5f + ratio * 0.5f, 1.0f - ratio * 0.3f);
-            }
-            else
-            {
-                // 浅绿到白色
-                float ratio = (t - 0.66f) / 0.34f;
-                return (ratio * 0.8f, 1.0f, 0.7f + ratio * 0.3f);
-            }
+                (0.0f, 0.0f, 0.5f), // 深蓝
+                (0.0f, 0.5f, 1.0f), // 青色
+                (0.0f, 1.0f, 0.7f), // 浅绿
+                (0.8f, 1.0f, 1.0f)  // 白色
+            };
+            
+            return CalculateGradientFromColors(t, colors);
         }
         
         /// <summary>
-        /// 火焰梯度：黑色 -> 深红 -> 橙色 -> 黄色 -> 白色
+        /// 火焰梯度：黑色 -> 深红 -> 红色 -> 橙色 -> 黄色 -> 白色
         /// </summary>
         private (float r, float g, float b) CalculateFireGradient(float t)
         {
-            if (t < 0.2f)
+            // 确保t在[0,1]范围内
+            t = Math.Max(0.0f, Math.Min(1.0f, t));
+            
+            // 定义颜色列表
+            var colors = new List<(float r, float g, float b)>
             {
-                // 黑色到深红
-                float ratio = t / 0.2f;
-                return (ratio * 0.5f, 0.0f, 0.0f);
-            }
-            else if (t < 0.4f)
+                (0.0f, 0.0f, 0.0f), // 黑色
+                (0.5f, 0.0f, 0.0f), // 深红
+                (1.0f, 0.0f, 0.0f), // 红色
+                (1.0f, 0.5f, 0.0f), // 橙色
+                (1.0f, 1.0f, 0.0f), // 黄色
+                (1.0f, 1.0f, 1.0f)  // 白色
+            };
+            
+            return CalculateGradientFromColors(t, colors);
+        }
+        
+
+        
+        /// <summary>
+        /// 通用颜色梯度计算方法，根据传入的颜色数组计算梯度
+        /// </summary>
+        /// <param name="t">归一化的位置值，范围[0,1]</param>
+        /// <param name="colors">颜色数组，RGB格式</param>
+        /// <returns>插值后的RGB颜色</returns>
+        private (float r, float g, float b) CalculateGradientFromColors(float t, List<(float r, float g, float b)> colors)
+        {
+            // 确保t在[0,1]范围内
+            t = Math.Max(0.0f, Math.Min(1.0f, t));
+            
+            // 确保至少有两种颜色
+            if (colors.Count < 2)
             {
-                // 深红到红色
-                float ratio = (t - 0.2f) / 0.2f;
-                return (0.5f + ratio * 0.5f, 0.0f, 0.0f);
+                throw new ArgumentException("颜色数组至少需要包含两种颜色");
             }
-            else if (t < 0.6f)
+            
+            // 计算每个颜色段的大小
+            int colorCount = colors.Count - 1; // 颜色段数量 = 颜色数量 - 1
+            float segmentSize = 1.0f / colorCount;
+            
+            // 确定当前t所在的颜色段
+            int segment = Math.Min((int)(t / segmentSize), colorCount - 1);
+            
+            // 计算在当前颜色段内的比例
+            float ratio = (t - segment * segmentSize) / segmentSize;
+            
+            // 在两个颜色之间进行线性插值
+            var color1 = colors[segment];
+            var color2 = colors[segment + 1];
+            
+            return (
+                color1.r + (color2.r - color1.r) * ratio,
+                color1.g + (color2.g - color1.g) * ratio,
+                color1.b + (color2.b - color1.b) * ratio
+            );
+        }
+        
+        /// <summary>
+        /// 通用HSV颜色梯度计算方法，根据传入的HSV颜色数组计算梯度
+        /// </summary>
+        /// <param name="t">归一化的位置值，范围[0,1]</param>
+        /// <param name="hsvColors">HSV颜色数组</param>
+        /// <returns>插值后的RGB颜色</returns>
+        private (float r, float g, float b) CalculateGradientFromHsvColors(float t, List<(float h, float s, float v)> hsvColors)
+        {
+            // 确保t在[0,1]范围内
+            t = Math.Max(0.0f, Math.Min(1.0f, t));
+            
+            // 确保至少有两种颜色
+            if (hsvColors.Count < 2)
             {
-                // 红色到橙色
-                float ratio = (t - 0.4f) / 0.2f;
-                return (1.0f, ratio * 0.5f, 0.0f);
+                throw new ArgumentException("颜色数组至少需要包含两种颜色");
             }
-            else if (t < 0.8f)
-            {
-                // 橙色到黄色
-                float ratio = (t - 0.6f) / 0.2f;
-                return (1.0f, 0.5f + ratio * 0.5f, 0.0f);
-            }
-            else
-            {
-                // 黄色到白色
-                float ratio = (t - 0.8f) / 0.2f;
-                return (1.0f, 1.0f, ratio);
-            }
+            
+            // 计算每个颜色段的大小
+            int colorCount = hsvColors.Count - 1; // 颜色段数量 = 颜色数量 - 1
+            float segmentSize = 1.0f / colorCount;
+            
+            // 确定当前t所在的颜色段
+            int segment = Math.Min((int)(t / segmentSize), colorCount - 1);
+            
+            // 计算在当前颜色段内的比例
+            float ratio = (t - segment * segmentSize) / segmentSize;
+            
+            // 在两个HSV颜色之间进行线性插值
+            var hsv1 = hsvColors[segment];
+            var hsv2 = hsvColors[segment + 1];
+            
+            // 对HSV值进行插值
+            float h = hsv1.h + (hsv2.h - hsv1.h) * ratio;
+            float s = hsv1.s + (hsv2.s - hsv1.s) * ratio;
+            float v = hsv1.v + (hsv2.v - hsv1.v) * ratio;
+            
+            // 将HSV转换为RGB
+            return HsvToRgb(h, s, v);
         }
         
         /// <summary>
@@ -778,15 +875,22 @@ public class ModalAnimationController : IDisposable
         /// <returns>对称梯度的RGB颜色值</returns>
         private (float r, float g, float b) CalculateSymmetricVariant(float t, Func<float, (float r, float g, float b)> baseGradientFunc)
         {
-            // 对称梯度：中心为蓝色，两端为红色
-            // t=0.5（对应位移0）→蓝色，t=0或t=1（对应位移-1或1）→红色
-            // 将t映射为距离中心的距离，然后应用基础梯度
+            // 实现真正的对称颜色过渡
+            // 将[0,1]映射为[0,0.5,1]，使得t=0.5时位于中心点
+            float mappedT;
             
-            // 计算距离中心点的距离：0.5→0, 0或1→1
-            float distanceFromCenter = Math.Abs(t - 0.5f) * 2.0f;
+            if (t < 0.5f)
+            {
+                // 前半段：从0到0.5映射为0到1
+                mappedT = t * 2.0f;
+            }
+            else
+            {
+                // 后半段：从0.5到1映射为1到0
+                mappedT = (1.0f - t) * 2.0f;
+            }
             
-            // 使用距离作为梯度参数：距离0→蓝色，距离1→红色
-            return baseGradientFunc(distanceFromCenter);
+            return baseGradientFunc(mappedT);
         }
         #endregion
         

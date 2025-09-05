@@ -67,6 +67,8 @@
                 </Grid>
             </StackPanel>
 
+
+
             <!-- 梯度条控制（紧凑化） -->
             <StackPanel Orientation="Vertical" Spacing="2">
                 <TextBlock Text="梯度条:" FontWeight="SemiBold"/>

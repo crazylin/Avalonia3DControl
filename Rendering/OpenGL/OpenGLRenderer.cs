@@ -602,7 +602,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 GL.UseProgram(miniAxesShaderProgram);
             
                 // 创建迷你坐标轴的投影矩阵（正交投影，扩大视场范围避免截取）
-                Matrix4 miniProjection = Matrix4.CreateOrthographic(3.5f, 3.5f, 0.1f, 10.0f);
+                Matrix4 miniProjection = Matrix4.CreateOrthographic(5.0f, 5.0f, 0.1f, 10.0f);
             
                 // 创建迷你坐标轴的视图矩阵（跟随主相机的旋转）
                 Vector3 cameraDirection = Vector3.Normalize(camera.Target - camera.Position);
@@ -618,8 +618,14 @@ namespace Avalonia3DControl.Rendering.OpenGL
                 SetPolygonModeSafe(PolygonMode.Fill);
                 _currentRenderMode = RenderMode.Fill;
             
+                // 禁用深度测试，确保迷你坐标轴始终可见
+                GL.Disable(EnableCap.DepthTest);
+            
                 // 渲染迷你坐标轴模型
                 RenderModel(miniAxes.AxesModel, miniAxesShaderProgram);
+            
+                // 恢复深度测试
+                GL.Enable(EnableCap.DepthTest);
             
                 // 标注渲染现在由SceneRenderer处理
             }

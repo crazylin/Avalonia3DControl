@@ -21,7 +21,7 @@ namespace Avalonia3DControl.Rendering.OpenGL
             GL.LineWidth(8.0f);
             
             // 标注位置（放在各轴顶端并略微前移，避免与轴重叠）
-            float labelSize = 0.15f; // 与字母绘制大小保持一致
+            float labelSize = 0.6f; // 与字母绘制大小保持一致
             float offsetAlong = labelSize + 0.02f; // 沿轴方向的额外偏移，确保完全在轴尖之外
             float labelBase = 1.0f; // 轴的顶端（迷你坐标轴模型长度为1）
             Vector3[] labelPositions = {
@@ -81,8 +81,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// </summary>
         private void DrawFilledLetterX(Vector3 color)
         {
-            float size = 0.12f;
-            float width = 0.03f; // 笔画宽度
+           float size = 0.2f;  // 字母大小
+             float width = 0.06f; // 笔画宽度
             
             // X字母由两个交叉的矩形组成，每个矩形用两个三角形绘制
             float[] vertices = {
@@ -114,8 +114,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// </summary>
         private void DrawFilledLetterY(Vector3 color)
         {
-            float size = 0.12f;
-            float width = 0.03f; // 笔画宽度
+            float size = 0.2f;  // 字母大小
+            float width = 0.06f; // 笔画宽度
             
             float[] vertices = {
                 // 左上分支
@@ -156,8 +156,8 @@ namespace Avalonia3DControl.Rendering.OpenGL
         /// </summary>
         private void DrawFilledLetterZ(Vector3 color)
         {
-            float size = 0.18f;
-            float width = 0.05f; // 笔画宽度（更粗）
+            float size = 0.2f;  // 字母大小
+             float width = 0.06f; // 笔画宽度（更粗）
             
             float[] vertices = {
                 // 上横线
